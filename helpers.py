@@ -2,11 +2,10 @@ import streamlit as st
 import pandas as pd
 import requests
 import io
-import streamlit.components.v1 as components
 from datetime import datetime, timedelta
 
 # ==========================================
-# 1. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (ОФФЛАЙН ГЕО И ДАТЫ)
+# 1. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (ОФФЛАЙН ДАННЫЕ)
 # ==========================================
 def get_port_coordinates(port_name):
     """ Оффлайн-геокодер для защиты от блокировок карт """
@@ -19,7 +18,7 @@ def get_port_coordinates(port_name):
 
 def get_live_vessel_data(mmsi):
     """ Оффлайн-координаты судна для стабильного рендеринга """
-    return 39.55, 29.30, 10.0, "🛰️ Автономный режим AIS | Скорость: 10.0 узлов | Статус: В пути"
+    return 39.55, 29.30, "🚢 Судно в пути (Эгейское море) | Скорость: 10.0 узлов"
 
 # ==========================================
 # 2. МОДУЛИ ИНТЕРФЕЙСА (ВКЛАДКИ)
@@ -27,47 +26,35 @@ def get_live_vessel_data(mmsi):
 def render_input_tab(CURRENCY_RATES, tg_token, tg_chat):
     st.subheader("🌾 Параметры зернового груза")
     
-    col1, col2 = st.columns(2)
-    with col1:
-        deal_id = st.text_input("ID сделки:", value=f"DEAL-{datetime.now().strftime('%Y%m%d-%H%M')}")
-        vessel_status = st.selectbox("🚦 Текущий статус рейса:", ["В пути", "В порту", "Завершена (Архив)"])
-        incoterms = st.selectbox("Базис поставки (Инкотермс):", ["CIF", "CFR", "FOB"])
-    with col2:
-        deal_date = st.date_input("Дата сделки:", value=datetime.now().date())
-        cargo_volume = st.number_input("Объем погрузки (Тонн):", min_value=1.0, value=5000.0, step=100.0)
+    deal_id = st.text_input("ID сделки:", value=f"DEAL-{datetime.now().strftime('%Y%m%d-%H%M')}")
+    vessel_status = st.selectbox("🚦 Текущий статус рейса:", ["В пути", "В порту", "Завершена (Архив)"])
+    incoterms = st.selectbox("Базис поставки (Инкотермс):", ["CIF", "CFR", "FOB"])
+    cargo_volume = st.number_input("Объем погрузки (Тонн):", min_value=1.0, value=5000.0, step=100.0)
+    deal_date = st.date_input("Дата сделки:", value=datetime.now().date())
     
     st.subheader("💵 Экономика зерновой сделки")
-    col3, col4 = st.columns(2)
-    with col3:
-        buy_curr = st.selectbox("Валюта закупки:", ["USD", "CNY", "RUB"])
-        price_buy_total = st.number_input(f"ОБЩАЯ стоимость закупки груза ({buy_curr}):", min_value=0.0, value=700000.0)
-    with col4:
-        price_sell_total = st.number_input("ОБЩАЯ стоимость продажи груза ($ USD):", min_value=0.0, value=180000.0)
+    buy_curr = st.selectbox("Валюта закупки:", ["USD", "CNY", "RUB"])
+    price_buy_total = st.number_input(f"ОБЩАЯ стоимость закупки груза ({buy_curr}):", min_value=0.0, value=700000.0)
+    price_sell_total = st.number_input("ОБЩАЯ стоимость продажи груза ($ USD):", min_value=0.0, value=180000.0)
     
     st.subheader("🚢 Логистика, Сроки и Накладные расходы")
-    col5, col6 = st.columns(2)
-    with col5:
-        port_start = st.text_input("Порт ЗАГРУЗКИ:", value="Стамбул")
-        port_end = st.text_input("Порт РАЗГРУЗКИ:", value="Новороссийск")
-        vessel_name = st.text_input("Название судна:", value="Vessel Alpha")
-        vessel_mmsi = st.text_input("MMSI или IMO судна:", value="211281610")
-    with col6:
-        freight = st.number_input("Стоимость фрахта судна ($):", min_value=0.0, value=15000.0)
-        duties = st.number_input("Пошлины, Страховка и Сертификаты ($):", min_value=0.0, value=5000.0)
-        extra_costs = st.number_input("Прочие накладные расходы на рейс ($):", min_value=0.0, value=2000.0)
-        allowed_days = st.number_input("Норма простоя на выгрузку (дней):", min_value=1, value=3)
-        demurrage_rate = st.number_input("Ставка демереджа ($ / сутки):", min_value=0.0, value=5000.0)
+    port_start = st.text_input("Порт ЗАГРУЗКИ:", value="Стамбул")
+    port_end = st.text_input("Порт РАЗГРУЗКИ:", value="Новороссийск")
+    vessel_name = st.text_input("Название судна:", value="Vessel Alpha")
+    vessel_mmsi = st.text_input("MMSI или IMO судна:", value="211281610")
     
-    col7, col8 = st.columns(2)
-    with col7:
-        deadline_date = st.date_input("Крайняя дата прибытия (Laycan):", value=datetime.now().date() + timedelta(days=2))
-    with col8:
-        arrival_date = st.date_input("Дата фактического захода в порт:", value=datetime.now().date() - timedelta(days=6))
+    freight = st.number_input("Стоимость фрахта судна ($):", min_value=0.0, value=15000.0)
+    duties = st.number_input("Пошлины, Страховка и Сертификаты ($):", min_value=0.0, value=5000.0)
+    extra_costs = st.number_input("Прочие накладные расходы на рейс ($):", min_value=0.0, value=2000.0)
+    allowed_days = st.number_input("Норма простоя на выгрузку (дней):", min_value=1, value=3)
+    demurrage_rate = st.number_input("Ставка демереджа ($ / сутки):", min_value=0.0, value=5000.0)
+    
+    deadline_date = st.date_input("Крайняя дата прибытия (Laycan):", value=datetime.now().date() + timedelta(days=2))
+    arrival_date = st.date_input("Дата фактического захода в порт:", value=datetime.now().date() - timedelta(days=6))
 
     if st.button("💾 СОХРАНИТЬ ЗЕРНОВУЮ СДЕЛКУ В БАЗУ", type="primary", use_container_width=True):
         buy_usd_total = float(price_buy_total / CURRENCY_RATES.get(buy_curr, 1.0))
         
-        # Автоматический динамический расчет демереджа на текущую дату (8 октября 2026)
         current_today = datetime.now().date()
         days_in_port = (current_today - arrival_date).days
         overdue = max(0, days_in_port - allowed_days)
@@ -96,7 +83,6 @@ def render_input_tab(CURRENCY_RATES, tg_token, tg_chat):
 def render_excel_tab():
     st.subheader("📋 Реестр зерновых сделок")
     
-    # ПЕРЕРАСЧЕТ ДЕМЕРЕДЖА ДЛЯ ВСЕЙ ТАБЛИЦЫ НА ТЕКУЩИЙ ДЕНЬ
     current_today = datetime.now().date()
     updated_rows = []
     for row in st.session_state.df_data.to_dict('records'):
@@ -106,7 +92,6 @@ def render_excel_tab():
             overdue = max(0, days_in_port - int(row['Норма простоя (дн)']))
             row['Демередж ($)'] = overdue * float(row['Ставка демереджа ($/сут)'])
             
-            # Корректируем чистую прибыль с учетом набежавшего штрафа
             buy_usd = float(row['Цена закупки (вход)']) / 7.2 if row['Валюта закупки'] == 'CNY' else (float(row['Цена закупки (вход)']) / 93.5 if row['Валюта закупки'] == 'RUB' else float(row['Цена закупки (вход)']))
             fr = 0.0 if row['Инкотермс'] == "FOB" else float(row['Фрахт ($)'])
             row['Чистая прибыль ($)'] = float(row['Цена продажи (USD)']) - buy_usd - fr - float(row['Пошлины и Страховка ($)']) - float(row['Прочие расходы ($)']) - row['Демередж ($)']
@@ -129,7 +114,6 @@ def render_excel_tab():
 def render_radar_tab(tg_token, tg_chat):
     st.subheader("📊 Логистический Радар Зерновозов")
     
-    # СИНХРОННЫЙ АВТОПЕРЕСЧЕТ ДЕМЕРЕДЖА НА ТЕКУЩИЙ ДЕНЬ
     current_today = datetime.now().date()
     updated_rows = []
     for row in st.session_state.df_data.to_dict('records'):
@@ -145,35 +129,49 @@ def render_radar_tab(tg_token, tg_chat):
     radar_df = df[df['Статус рейса'] != "Завершена (Архив)"] if 'Статус рейса' in df.columns else df
         
     if radar_df.empty:
-        st.info("Нет активных зерновозов на мониторинге. Все рейсы в архиве.")
+        st.info("Нет активных зерновозов на мониторинге.")
         return
         
     selected_deal = st.selectbox("Выберите судно для трекинга:", list(radar_df['ID Сделки'].unique()))
     v_rows = radar_df[radar_df['ID Сделки'] == selected_deal].to_dict('records')
     
     if len(v_rows) > 0:
-        v_info = v_rows[0]
+        # ИСПРАВЛЕНО: берём первый элемент списка строк, чтобы код не падал!
+        v_info = v_rows[0] 
         st.markdown(f"### 🚢 Мониторинг судна: `{v_info.get('Название судна', 'Alpha')}`")
         
-        # Получаем оффлайн-координаты для стабильности
-        v_lat, v_lon, v_speed, status_text = get_live_vessel_data(v_info.get('MMSI/IMO'))
+        v_lat, v_lon, status_text = get_live_vessel_data(v_info.get('MMSI/IMO'))
         p_start_lat, p_start_lon = get_port_coordinates(v_info.get('Порт загрузки', 'Стамбул'))
         p_end_lat, p_end_lon = get_port_coordinates(v_info.get('Порт разгрузки', 'Новороссийск'))
         
         st.success(status_text)
         
-        # Логика динамического вывода дней простоя
         arr_dt = datetime.strptime(str(v_info['Дата захода в порт']), "%Y-%m-%d").date()
         total_days_spent = (current_today - arr_dt).days
         
-        col_m1, col_m2, col_m3 = st.columns(3)
-        col_m1.metric("Фактически дней в порту", f"{total_days_spent} дн.")
-        col_m2.metric("Разрешенная норма простоя", f"{v_info.get('Норма простоя (дн)')} дн.")
-        col_m3.metric("Текущий НАБЕЖАВШИЙ демередж", f"${v_info.get('Демередж ($)', 0.0):,.2f}")
+        col_m1, col_m2 = st.columns(2)
+        with col_m1:
+            st.metric("Фактически дней в порту", f"{total_days_spent} из {v_info.get('Норма простоя (дн)')} дн.")
+            st.metric("Текущий демередж сделки", f"${v_info.get('Демередж ($)', 0.0):,.2f}")
+        with col_m2:
+            st.metric("Текущая чистая прибыль", f"${v_info.get('Чистая прибыль ($)', 0.0):,.2f}")
         
         # ==========================================
-        # 100% НЕУБИВАЕМАЯ ОФФЛАЙН-КАРТА (HTML/SVG ВЕКТОР)
+        # ЧИСТАЯ, НАДЁЖНАЯ СТАНДАРТНАЯ КАРТА STREAMLIT
         # ==========================================
-        st.markdown("**📍 Интерактивная векторная схема маршрута:**")
+        st.markdown("**📍 Нативная карта расположения судна и портов рейса:**")
         
-        # Генерируем адаптивную карту на чистом HTML/CSS/SVG, которая откроется везде
+        # Собираем точки маршрута в стандартную таблицу
+        map_points = [
+            {'latitude': p_start_lat, 'longitude': p_start_lon, 'Название': 'Порт загрузки'},
+            {'latitude': v_lat, 'longitude': v_lon, 'Название': 'Текущая позиция судна'},
+            {'latitude': p_end_lat, 'longitude': p_end_lon, 'Название': 'Порт разгрузки'}
+        ]
+        df_map = pd.DataFrame(map_points)
+        
+        # Вызываем стандартный, оптимизированный под телефоны st.map
+        st.map(df_map, zoom=4, use_container_width=True)
+        
+        # Текстовый дубляж схемы для 100% контроля
+        st.markdown("**📋 Схема этапа рейса:**")
+        p_start = v_info.get('Порт загрузки', 'Старт')
