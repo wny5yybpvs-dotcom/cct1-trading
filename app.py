@@ -4,6 +4,7 @@ import requests
 import math
 import io
 from datetime import datetime, date
+from streamlit_gsheets import GSheetsConnection
 
 # --- НАСТРОЙКА БЕЗОПАСНОСТИ ---
 COMPANY_PASSWORD = "cct1_trade"
@@ -22,7 +23,7 @@ if not st.session_state.auth:
             st.error("❌ Неверный пароль")
     st.stop()
 
-# --- ФУНКЦИЯ ОТПРАВКИ В TELEGRAM ---
+# --- ТЕКСТ ДЛЯ TELEGRAM ---
 def send_telegram_message(token, chat_id, text):
     if not token or not chat_id or token == "ВАШ_ТОКЕН" or chat_id == "ВАШ_ID" or token.strip() == "" or chat_id.strip() == "":
         return False, "⚠️ Поля токена или Chat ID не заполнены в боковом меню!"
@@ -30,14 +31,13 @@ def send_telegram_message(token, chat_id, text):
         url = f"https://telegram.org{token.strip()}/sendMessage"
         payload = {"chat_id": chat_id.strip(), "text": text, "parse_mode": "Markdown"}
         response = requests.post(url, json=payload, timeout=5)
-        
         if response.status_code == 200:
             return True, "Успешно!"
         else:
             error_desc = response.json().get("description", "Неизвестная ошибка")
-            return False, f"Ошибка сервера Telegram: {error_desc} (Код {response.status_code})"
+            return False, f"Ошибка Telegram: {error_desc}"
     except Exception as e:
-        return False, f"Ошибка сети при отправке: {str(e)}"
+        return False, f"Ошибка сети: {str(e)}"
 
 # --- БАЗА МИРОВЫХ ПОРТОВ ---
 PORTS = {
@@ -82,32 +82,13 @@ def get_live_vessel_data(mmsi_or_imo):
         return 44.722, 37.782, "⚠️ Стоит в порту разгрузки (Новороссийск) | Скорость: 0 узлов"
     return 29.93, 32.55, "Режим ожидания. Показываем плановую точку."
 
-# --- НАДЕЖНАЯ ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ ---
-if "df_data" not in st.session_state or not isinstance(st.session_state.df_data, pd.DataFrame) or st.session_state.df_data.empty:
-    st.session_state.df_data = pd.DataFrame([{
-        'ID Сделки': 'Тест-Новороссийск', 
-        'Дата': str(datetime.now().date()), 
-        'Название судна': 'Vessel Alpha', 
-        'MMSI/IMO': '211281610',
-        'Порт загрузки': 'Стамбул (Турция)', 
-        'Порт разгрузки': 'Новороссийск (Россия)', 
-        'Цена закупки ($)': 100000.0, 
-        'Цена продажи ($)': 170000.0,
-        'Фрахт ($)': 15000.0, 
-        'Пошлины и Страховка ($)': 5000.0, 
-        'Прочие расходы ($)': 2000.0, 
-        'Норма простоя (дн)': 3, 
-        'Ставка демереджа ($/сут)': 5000.0,
-        'Дата захода в порт': str(date(2026, 10, 1)), 
-        'Демередж ($)': 15000.0, 
-        'Чистая прибыль ($)': 33000.0
-    }])
-
 # --- ИНТЕРФЕЙС ---
 st.set_page_config(layout="centered", page_title="CCT1 Trading & Logistics")
-st.title("🚢 Платформа CCT1 Enterprise")
+st.title("🚢 Платформа CCT1 Cloud")
 
-st.sidebar.header("🤖 Настройки Telegram")
+# БОКОВАЯ ПАНЕЛЬ ДЛЯ НАСТРОЕК
+st.sidebar.header("⚙️ Настройки интеграций")
+sheet_url = st.sidebar.text_input("Ссылка на Google Таблицу:", value="ВСТАВЬТЕ_ССЫЛКУ_ИЗ_ШАГА_1")
 tg_token = st.sidebar.text_input("Telegram Bot Token:", value="ВАШ_ТОКЕН", type="password")
 tg_chat = st.sidebar.text_input("Telegram Chat ID:", value="ВАШ_ID")
 
@@ -115,7 +96,24 @@ if st.sidebar.button("Выйти из системы"):
     st.session_state.auth = False
     st.rerun()
 
-tab1, tab2, tab3 = st.tabs(["📥 Ввод данных", "📋 База сделок (Excel)", "📊 Аналитика и Авто-Демередж"])
+# ПОДКЛЮЧЕНИЕ К GOOGLE SHEETS
+@st.cache_data(ttl=5) # Кэшируем данные на 5 секунд для быстроты
+def load_gsheet_data(url):
+    if "://google.com" not in url:
+        return pd.DataFrame()
+    try:
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        return conn.read(spreadsheet=url, ttl="5s")
+    except:
+        return pd.DataFrame()
+
+# Загружаем актуальные данные из Google Sheets
+if "://google.com" in sheet_url:
+    df_data = load_gsheet_data(sheet_url)
+else:
+    df_data = pd.DataFrame()
+
+tab1, tab2, tab3 = st.tabs(["📥 Ввод данных", "📋 База сделок (Google)", "📊 Аналитика и Авто-Демередж"])
 
 # --- ВКЛАДКА 1: ВВОД ДАННЫХ ---
 with tab1:
@@ -143,69 +141,72 @@ with tab1:
 
     st.write("---")
     
-    if st.button("💾 СОХРАНИТЬ СДЕЛКУ И ОТПРАВИТЬ ОТЧЕТ", type="primary", use_container_width=True):
+    if st.button("💾 СОХРАНИТЬ В GOOGLE SHEETS И TELEGRAM", type="primary", use_container_width=True):
+        if "://google.com" not in sheet_url:
+            st.error("❌ Сначала вставьте корректную ссылку на Google Таблицу в левое боковое меню!")
+            st.stop()
+            
         days_in_port = (datetime.now().date() - arrival_date).days
         days_overdue = max(0, days_in_port - allowed_days)
         demurrage_total = days_overdue * demurrage_rate
         net_profit = price_sell - price_buy - freight - duties - extra_costs - demurrage_total
         
-        new_row = {
+        new_row = pd.DataFrame([{
             'ID Сделки': deal_id, 'Дата': str(deal_date), 'Название судна': vessel_name, 'MMSI/IMO': vessel_mmsi,
             'Порт загрузки': port_start, 'Порт разгрузки': port_end, 'Цена закупки ($)': float(price_buy),
             'Цена продажи ($)': float(price_sell), 'Фрахт ($)': float(freight), 'Пошлины и Страховка ($)': float(duties),
             'Прочие расходы ($)': float(extra_costs), 'Норма простоя (дн)': int(allowed_days),
             'Ставка демереджа ($/сут)': float(demurrage_rate), 'Дата захода в порт': str(arrival_date),
             'Демередж ($)': float(demurrage_total), 'Чистая прибыль ($)': float(net_profit)
-        }
+        }])
         
-        st.session_state.df_data = pd.concat([st.session_state.df_data, pd.DataFrame([new_row])], ignore_index=True)
-        
-        tg_text = f"📝 *Новая сделка сохранена!*\n\n*ID:* {deal_id}\n*Маршрут:* {port_start} ➡️ {port_end}\n*Судно:* {vessel_name}\n*Чистая прибыль:* ${net_profit:,.2f}"
-        
-        success, info = send_telegram_message(tg_token, tg_chat, tg_text)
-        if success:
-            st.success("🤖 Отчет успешно доставлен в Telegram!")
-        else:
-            st.error(f"❌ Ошибка отправки: {info}")
+        try:
+            # Запись новой строки в конец Google Таблицы
+            updated_df = pd.concat([df_data, new_row], ignore_index=True)
+            conn = st.connection("gsheets", type=GSheetsConnection)
+            conn.update(spreadsheet=sheet_url, data=updated_df)
+            st.success("📊 Данные успешно записаны вечно в Google Sheets!")
             
-        st.success(f"✅ Данные сделки {deal_id} успешно внесены!")
-        st.rerun()
+            # Отправка в Telegram
+            tg_text = f"📝 *Новая сделка в Google Sheets!*\n\n*ID:* {deal_id}\n*Маршрут:* {port_start} ➡️ {port_end}\n*Судно:* {vessel_name}\n*Чистая прибыль:* ${net_profit:,.2f}"
+            success, info = send_telegram_message(tg_token, tg_chat, tg_text)
+            if success:
+                st.success("🤖 Отчет доставлен в Telegram!")
+            
+            st.rerun()
+        except Exception as e:
+            st.error(f"❌ Не удалось записать в Google Sheets. Проверьте права 'Редактор' для ссылки. Ошибка: {str(e)}")
 
 # --- ВКЛАДКА 2 ---
 with tab2:
-    st.header("📋 Реестр торговых сделок")
-    st.dataframe(st.session_state.df_data, use_container_width=True)
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-        st.session_state.df_data.to_excel(writer, index=False, sheet_name='Сделки CCT1')
-    st.download_button(
-        label="📥 СКАЧАТЬ ВСЮ БАЗУ В EXCEL (.xlsx)", data=buffer.getvalue(),
-        file_name=f"CCT1_Report_{datetime.now().strftime('%Y%m%d')}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True
-    )
-    st.write("---")
-    delete_id = st.selectbox("ID для удаления:", st.session_state.df_data['ID Сделки'].unique())
-    if st.button("❌ Удалить сделку из базы", use_container_width=True):
-        st.session_state.df_data = st.session_state.df_data[st.session_state.df_data['ID Сделки'] != delete_id]
-        st.warning(f"Сделка {delete_id} удалена.")
-        st.rerun()
+    st.header("📋 Текущие записи в Google Sheets")
+    if df_data.empty:
+        st.info("Таблица пуста или ссылка в боковом меню не настроена.")
+    else:
+        st.dataframe(df_data, use_container_width=True)
 
 # --- ВКЛАДКА 3 ---
 with tab3:
-    st.header("📊 Мониторинг рейсов и Расчет рисков")
-    df = st.session_state.df_data
-    
-    selected_deal = st.selectbox("Выберите активную сделку:", df['ID Сделки'].unique())
-    
-    # ИСПРАВЛЕНО: Безопасное извлечение первой строки в виде серии данных
-    vessel_info = df[df['ID Сделки'] == selected_deal].iloc[0]
-    
-    st.write(f"🚢 **Судно:** {vessel_info['Название судна']} | **MMSI:** {vessel_info['MMSI/IMO']}")
-    
-    with st.spinner("Связь со спутниками AIS..."):
-        v_lat, v_lon, status_text = get_live_vessel_data(vessel_info['MMSI/IMO'])
-    st.warning(f"📡 {status_text}")
-    
-    target_port_name = vessel_info['Порт разгрузки']
-    port_coords = PORTS[target_port_name]
-    distance_to_port = haversine(v_lat, v_lon, port_coords['lat'], port_coords['lon'])
+    st.header("📊 Онлайн Мониторинг рейсов")
+    if df_data.empty:
+        st.info("Нет данных. Настройте таблицу и добавьте сделки.")
+    else:
+        selected_deal = st.selectbox("Выберите активную сделку:", df_data['ID Сделки'].unique())
+        vessel_info = df_data[df_data['ID Сделки'] == selected_deal].iloc[0]
+        
+        st.write(f"🚢 **Судно:** {vessel_info['Название судна']} | **MMSI:** {vessel_info['MMSI/IMO']}")
+        
+        with st.spinner("Связь со спутниками AIS..."):
+            v_lat, v_lon, status_text = get_live_vessel_data(vessel_info['MMSI/IMO'])
+        st.warning(f"📡 {status_text}")
+        
+        target_port_name = vessel_info['Порт разгрузки']
+        port_coords = PORTS[target_port_name]
+        distance_to_port = haversine(v_lat, v_lon, port_coords['lat'], port_coords['lon'])
+        st.write(f"📏 **Дистанция до причала:** {round(distance_to_port, 1)} км")
+        
+        if distance_to_port <= 15.0:
+            st.error("🎯 Судно находится в порту назначения!")
+            entry_date = datetime.strptime(str(vessel_info['Дата захода в порт']), "%Y-%m-%d").date()
+            days_spent = (datetime.now().date() - entry_date).days
+            overdue = max(0, days_spent - int(vessel_info['Норма простоя (дн)']))
