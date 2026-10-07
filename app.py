@@ -22,21 +22,26 @@ if not st.session_state.auth:
             st.error("❌ Неверный пароль")
     st.stop()
 
-# --- ФУНКЦИЯ ОТПРАВКИ В TELEGRAM ---
+# --- ФУНКЦИЯ ОТПРАВКИ С ДИАГНОСТИКОЙ ОШИБОК ---
 def send_telegram_message(token, chat_id, text):
-    if not token or not chat_id or token == "ВАШ_ТОКЕН" or chat_id == "ВАШ_ID":
-        return False
+    if not token or not chat_id or token == "ВАШ_ТОКЕН" or chat_id == "ВАШ_ID" or token.strip() == "" or chat_id.strip() == "":
+        return False, "⚠️ Поля токена или Chat ID не заполнены в боковом меню!"
     try:
-        url = f"https://telegram.org{token}/sendMessage"
-        payload = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}
-        requests.post(url, json=payload, timeout=5)
-        return True
-    except:
-        return False
+        url = f"https://api.telegram.org/bot{token.strip()}/sendMessage"
+        payload = {"chat_id": chat_id.strip(), "text": text, "parse_mode": "Markdown"}
+        response = requests.post(url, json=payload, timeout=5)
+        
+        if response.status_code == 200:
+            return True, "Успешно!"
+        else:
+            # Возвращаем описание ошибки от самого Telegram сервера
+            error_desc = response.json().get("description", "Неизвестная ошибка")
+            return False, f"Ошибка сервера Telegram: {error_desc} (Код {response.status_code})"
+    except Exception as e:
+        return False, f"Ошибка сети при отправке: {str(e)}"
 
-# --- РАСШИРЕННАЯ БАЗА МИРОВЫХ ПОРТОВ (30+ ПОРТОВ) ---
+# --- БАЗА ПОРТОВ ---
 PORTS = {
-    # --- РОССИЯ ---
     "Новороссийск (Россия)": {"lat": 44.72, "lon": 37.78},
     "Санкт-Петербург (Россия)": {"lat": 59.93, "lon": 30.25},
     "Владивосток (Россия)": {"lat": 43.11, "lon": 131.88},
@@ -45,12 +50,10 @@ PORTS = {
     "Кавказ (Россия)": {"lat": 45.34, "lon": 36.67},
     "Усть-Луга (Россия)": {"lat": 59.68, "lon": 28.43},
     "Находка (Россия)": {"lat": 42.81, "lon": 132.88},
-    # --- СНГ И ТУРЦИЯ ---
     "Стамбул (Турция)": {"lat": 41.01, "lon": 28.97},
     "Джейхан (Турция)": {"lat": 36.88, "lon": 35.93},
     "Поти (Грузия)": {"lat": 42.14, "lon": 41.64},
     "Актау (Казахстан)": {"lat": 44.53, "lon": 51.17},
-    # --- АЗИЯ ---
     "Шанхай (Китай)": {"lat": 31.23, "lon": 121.47},
     "Нинбо-Чжоушань (Китай)": {"lat": 29.86, "lon": 121.54},
     "Циндао (Китай)": {"lat": 36.07, "lon": 120.38},
@@ -59,19 +62,16 @@ PORTS = {
     "Пусан (Южная Корея)": {"lat": 35.17, "lon": 129.07},
     "Мумбаи / Джавахарлал Неру (Индия)": {"lat": 18.95, "lon": 72.95},
     "Мундра (Индия)": {"lat": 22.74, "lon": 69.70},
-    # --- БЛИЖНИЙ ВОСТОК И ИРАН ---
     "Джидда (Саудовская Аравия)": {"lat": 21.54, "lon": 39.17},
     "Джебель-Али / Дубай (ОАЭ)": {"lat": 25.01, "lon": 55.06},
     "Фуджайра (ОАЭ)": {"lat": 25.12, "lon": 56.36},
     "Бендер-Аббас (Иран)": {"lat": 27.14, "lon": 56.22},
     "Басра (Ирак)": {"lat": 30.50, "lon": 47.81},
-    # --- ЕВРОПА И СРЕДИЗЕМНОМОРЬЕ ---
     "Роттердам (Нидерланды)": {"lat": 51.92, "lon": 4.47},
     "Антверпен (Бельгия)": {"lat": 51.22, "lon": 4.40},
     "Пирей (Греция)": {"lat": 37.94, "lon": 23.64},
     "Валенсия (Испания)": {"lat": 39.45, "lon": -0.32},
     "Александрия (Египет)": {"lat": 31.20, "lon": 29.91},
-    # --- АМЕРИКА И АФРИКА ---
     "Хьюстон (США)": {"lat": 29.76, "lon": -95.36},
     "Лос-Анджелес (США)": {"lat": 33.74, "lon": -118.26},
     "Сантос (Бразилия)": {"lat": -23.96, "lon": -46.33},
@@ -102,30 +102,17 @@ def get_live_vessel_data(mmsi_or_imo):
 
 if "df_data" not in st.session_state:
     st.session_state.df_data = pd.DataFrame([{
-        'ID Сделки': 'Тест-Новороссийск',
-        'Дата': str(datetime.now().date()),
-        'Название судна': 'Vessel Alpha',
-        'MMSI/IMO': '211281610',
-        'Порт загрузки': 'Стамбул (Турция)',
-        'Порт разгрузки': 'Новороссийск (Россия)',
-        'Цена закупки ($)': 100000.0,
-        'Цена продажи ($)': 170000.0,
-        'Фрахт ($)': 15000.0,
-        'Пошлины ($)': 5000.0,
-        'Прочие расходы ($)': 2000.0,
-        'Норма простоя (дн)': 3,
-        'Ставка демереджа ($/сут)': 5000.0,
-        'Дата захода в порт': str(date(2026, 10, 1)),
-        'Демередж ($)': 15000.0,
-        'Чистая прибыль ($)': 33000.0
+        'ID Сделки': 'Тест-Новороссийск', 'Дата': str(datetime.now().date()), 'Название сувна': 'Vessel Alpha', 'MMSI/IMO': '211281610',
+        'Порт загрузки': 'Стамбул (Турция)', 'Порт разгрузки': 'Новороссийск (Россия)', 'Цена закупки ($)': 100000.0, 'Цена продажи ($)': 170000.0,
+        'Фрахт ($)': 15000.0, 'Пошлины ($)': 5000.0, 'Прочие расходы ($)': 2000.0, 'Норма простоя (дн)': 3, 'Ставка демереджа ($/сут)': 5000.0,
+        'Дата захода в порт': str(date(2026, 10, 1)), 'Демередж ($)': 15000.0, 'Чистая прибыль ($)': 33000.0
     }])
 
 # --- ИНТЕРФЕЙС ---
 st.set_page_config(layout="centered", page_title="CCT1 Trading & Logistics")
 st.title("🚢 Платформа CCT1 Enterprise")
 
-# БОКОВАЯ ПАНЕЛЬ ДЛЯ TELEGRAM И КНОПКИ ВЫХОДА
-st.sidebar.header("🤖 Интеграция с Telegram")
+st.sidebar.header("🤖 Настройки Telegram")
 tg_token = st.sidebar.text_input("Telegram Bot Token:", value="ВАШ_ТОКЕН", type="password")
 tg_chat = st.sidebar.text_input("Telegram Chat ID:", value="ВАШ_ID")
 
@@ -148,8 +135,8 @@ with tab1:
     extra_costs = st.number_input("Прочие накладные расходы ($):", min_value=0.0, value=1000.0)
         
     st.subheader("🚢 Направление и Судно")
-    port_start = st.selectbox("Выберите Порт ЗАГРУЗКИ:", sorted(list(PORTS.keys())), index=26) # Дефолт Стамбул
-    port_end = st.selectbox("Выберите Порт РАЗГРУЗКИ:", sorted(list(PORTS.keys())), index=11) # Дефолт Новороссийск
+    port_start = st.selectbox("Выберите Порт ЗАГРУЗКИ:", sorted(list(PORTS.keys())), index=26)
+    port_end = st.selectbox("Выберите Порт РАЗГРУЗКИ:", sorted(list(PORTS.keys())), index=11)
     
     vessel_name = st.text_input("Название судна:", value="Vessel Alpha")
     vessel_mmsi = st.text_input("MMSI или IMO судна:", value="211281610")
@@ -172,38 +159,36 @@ with tab1:
             'Порт загрузки': port_start, 'Порт разгрузки': port_end, 'Цена закупки ($)': float(price_buy),
             'Цена продажи ($)': float(price_sell), 'Фрахт ($)': float(freight), 'Пошлины и Страховка ($)': float(duties),
             'Прочие расходы ($)': float(extra_costs), 'Норма простоя (дн)': int(allowed_days),
-            'Ставка демереджа ($/сут)': float(demurrage_rate), 'Дата захода in порт': str(arrival_date),
+            'Ставка демереджа ($/сут)': float(demurrage_rate), 'Дата захода в порт': str(arrival_date),
             'Демередж ($)': float(demurrage_total), 'Чистая прибыль ($)': float(net_profit)
         }
         
         st.session_state.df_data = pd.concat([st.session_state.df_data, pd.DataFrame([new_row])], ignore_index=True)
         
-        # ОТПРАВКА В TELEGRAM
+        # ОТПРАВКА С ТЕСТОМ ОШИБОК
         tg_text = f"📝 *Новая сделка сохранена!*\n\n*ID:* {deal_id}\n*Маршрут:* {port_start} ➡️ {port_end}\n*Судно:* {vessel_name}\n*Чистая прибыль:* ${net_profit:,.2f}"
-        if send_telegram_message(tg_token, tg_chat, tg_text):
-            st.success("🤖 Отчет успешно отправлен в Telegram!")
+        
+        success, info = send_telegram_message(tg_token, tg_chat, tg_text)
+        if success:
+            st.success("🤖 Отчет успешно доставлен в Telegram!")
+        else:
+            st.error(f"❌ Ошибка отправки: {info}") # Выведет точную проблему прямо на экран
             
-        st.success(f"✅ Сделка {deal_id} сохранена!")
+        st.success(f"✅ Данные сделки {deal_id} успешно внесены в локальную базу!")
         st.rerun()
 
-# --- ВКЛАДКА 2: БАЗА СДЕЛОК (ЭКСПОРТ В EXCEL) ---
+# --- ВКЛАДКА 2 ---
 with tab2:
     st.header("📋 Реестр торговых сделок")
     st.dataframe(st.session_state.df_data, use_container_width=True)
-    
-    # ФУНКЦИЯ СКАЧИВАНИЯ EXCEL ФАЙЛА
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
         st.session_state.df_data.to_excel(writer, index=False, sheet_name='Сделки CCT1')
-    
     st.download_button(
-        label="📥 СКАЧАТЬ ВСЮ БАЗУ В EXCEL (.xlsx)",
-        data=buffer.getvalue(),
+        label="📥 СКАЧАТЬ ВСЮ БАЗУ В EXCEL (.xlsx)", data=buffer.getvalue(),
         file_name=f"CCT1_Report_{datetime.now().strftime('%Y%m%d')}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True
     )
-    
     st.write("---")
     delete_id = st.selectbox("ID для удаления:", st.session_state.df_data['ID Сделки'].unique())
     if st.button("❌ Удалить сделку из базы", use_container_width=True):
@@ -211,8 +196,3 @@ with tab2:
         st.warning(f"Сделка {delete_id} удалена.")
         st.rerun()
 
-# --- ВКЛАДКА 3: АНАЛИТИКА И АВТО-ДЕМЕРЕДЖ ---
-with tab3:
-    st.header("📊 Мониторинг рейсов и Расчет рисков")
-    df = st.session_state.df_data
-    
