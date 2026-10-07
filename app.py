@@ -175,7 +175,7 @@ with tab1:
         net_profit = float(price_sell) - price_buy_usd - actual_freight - float(duties) - float(extra_costs) - demurrage_total
         
         new_row = {
-            'ID Сделки': deal_id, 'Дата': str(deal_date), 'IndentationError': incoterms,
+            'ID Сделки': deal_id, 'Дата': str(deal_date), 'Инкотермс': incoterms,
             'Название судна': vessel_name, 'MMSI/IMO': vessel_mmsi,
             'Порт загрузки': port_start, 'Порт разгрузки': port_end, 
             'Цена закупки (вход)': float(price_buy), 'Валюта закупки': buy_curr, 
@@ -187,7 +187,7 @@ with tab1:
         
         st.session_state.df_data = pd.concat([st.session_state.df_data, pd.DataFrame([new_row])], ignore_index=True)
         
-        tg_text = f"📝 *Новая сделка сохранена!*\n\n*ID:* {deal_id}\n*Маршрут:* {port_start} ➡️ {port_end}\n*Прибыль:* ${net_profit:,.2f} USD"
+        tg_text = f"📝 *Новая сделка сохранена!*\\n\\n*ID:* {deal_id}\\n*Маршрут:* {port_start} ➡️ {port_end}\\n*Прибыль:* ${net_profit:,.2f} USD"
         send_telegram_message(tg_token, tg_chat, tg_text)
         st.success(f"✅ Сделка {deal_id} внесена в реестр!")
         st.rerun()
@@ -205,9 +205,11 @@ with tab2:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True
     )
 
-# --- ВКЛАДКА 3 (ПОЛНОСТЬЮ ВЫРОВНЕННАЯ БЕЗ ОШИБОК ОТСТУПОВ) ---
+# --- ВКЛАДКА 3 ---
 with tab3:
     st.header("📊 Умный Мониторинг & Логистический Радар")
     df = st.session_state.df_data
     
     if df.empty:
+        st.info("Нет активных сделок.")
+    else:
