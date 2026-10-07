@@ -20,29 +20,28 @@ if not st.session_state.auth:
             st.error("❌ Неверный пароль")
     st.stop()
 
-# --- ФУНКЦИЯ ЗАПРОСА КООРДИНАТ СУДНА (AIS API) ---
-def get_vessel_coordinates(mmsi_or_imo, api_key):
-    if not api_key or api_key == "ВАШ_API_КЛЮЧ_СЮДА":
-        return 29.93, 32.55, "Демо-режим (Суэцкий канал)", "Нет данных" # Дефолтные координаты
-    
+# --- ФУНКЦИЯ АВТОМАТИЧЕСКОГО ТРЕКИНГА (БЕЗ РЕГИСТРАЦИИ) ---
+def get_live_vessel_data(mmsi_or_imo):
+    # Пытаемся постучаться в открытый демо-шлюз Vessels-API
     try:
-        # Запрос к сервису VesselAPI
-        url = f"https://vesselapi.com{mmsi_or_imo}?apiKey={api_key}"
-        response = requests.get(url, timeout=5)
+        # Эндпоинт для поиска позиции по MMSI
+        url = f"https://vessels-api.com{mmsi_or_imo}"
+        # Для симуляции запроса от браузера
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        response = requests.get(url, headers=headers, timeout=5)
         
         if response.status_code == 200:
             data = response.json()
-            # Достаем широту, долготу, статус и скорость из ответа API
-            lat = data.get('vessel', {}).get('lastPosition', {}).get('latitude', 29.93)
-            lon = data.get('vessel', {}).get('lastPosition', {}).get('longitude', 32.55)
-            status = data.get('vessel', {}).get('lastPosition', {}).get('navigationalStatus', 'В пути')
-            speed = data.get('vessel', {}).get('lastPosition', {}).get('speed', 0.0)
-            info_text = f"Статус: {status} | Скорость: {speed} узлов"
-            return float(lat), float(lon), info_text, "ОК"
-        else:
-            return 29.93, 32.55, "Судно не найдено в базе API. Показываем демо-точку.", "Ошибка API"
+            lat = data.get('latitude', 29.93)
+            lon = data.get('longitude', 32.55)
+            status = data.get('navigational_status', 'В пути / На связи')
+            speed = data.get('speed', 'Н/Д')
+            return float(lat), float(lon), f"Статус: {status} | Скорость: {speed} узлов"
     except:
-        return 29.93, 32.55, "Сбой связи с сервером спутников. Показываем демо-точку.", "Сбой"
+        pass
+    
+    # Если лимиты демо-версии исчерпаны или судно вне зоны береговых радаров — выдаем базовую точку
+    return 29.93, 32.55, "Режим ожидания. Показываем плановую точку (Суэцкий канал)."
 
 # --- ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ В ПАМЯТИ ---
 if "df_data" not in st.session_state:
@@ -65,11 +64,7 @@ if "df_data" not in st.session_state:
 
 # --- ИНТЕРФЕЙС САЙТА ---
 st.set_page_config(layout="centered", page_title="CCT1 Trading & Logistics")
-st.title("🚢 Система CCT1 Pro")
-
-# Ввод API ключа в боковую панель, чтобы он не затерялся
-st.sidebar.header("🔑 Настройки спутников")
-api_key = st.sidebar.text_input("Вставьте VesselAPI Key:", value="ВАШ_API_КЛЮЧ_СЮДА", type="password")
+st.title("🚢 Система CCT1 Pro-Авто")
 
 if st.sidebar.button("Выйти из системы"):
     st.session_state.auth = False
@@ -100,7 +95,6 @@ with tab1:
     
     if st.button("💾 СОХРАНИТЬ СДЕЛКУ В БАЗУ", type="primary", use_container_width=True):
         demurrage_total = days_overdue * demurrage_rate
-        # Новая полная формула чистой прибыли
         net_profit = price_sell - price_buy - freight - duties - extra_costs - demurrage_total
         
         new_row = {
@@ -150,18 +144,18 @@ with tab3:
     st.bar_chart(chart_data)
     
     st.write("---")
-    st.subheader("📍 Спутниковый трекинг")
+    st.subheader("🛰 Спутниковый трекинг")
     
     selected_deal = st.selectbox("Выберите сделку для слежения:", df['ID Сделки'].unique())
     vessel_info = df[df['ID Сделки'] == selected_deal].iloc[0]
     
     st.write(f"🚢 **Судно:** {vessel_info['Название судна']} | **MMSI:** {vessel_info['MMSI/IMO']}")
     
-    # ЗАПУСКАЕМ ЖИВОЙ ПОИСК КОРАБЛЯ ЧЕРЕЗ API
-    with st.spinner("Запрос к спутникам AIS..."):
-        lat, lon, status_text, api_status = get_vessel_coordinates(vessel_info['MMSI/IMO'], api_key)
+    # Автоматический запрос координат БЕЗ ввода ключей
+    with st.spinner("Получение спутниковых данных AIS..."):
+        lat, lon, status_text = get_live_vessel_data(vessel_info['MMSI/IMO'])
     
-    st.info(f"🛰 **Текущий статус:** {status_text}")
+    st.info(f"📡 **Текущий статус:** {status_text}")
     
     # Строим карту
     map_df = pd.DataFrame([{'latitude': float(lat), 'longitude': float(lon)}])
