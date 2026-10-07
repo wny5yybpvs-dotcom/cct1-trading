@@ -175,7 +175,7 @@ with tab1:
         net_profit = float(price_sell) - price_buy_usd - actual_freight - float(duties) - float(extra_costs) - demurrage_total
         
         new_row = {
-            'ID Сделки': deal_id, 'Дата': str(deal_date), 'Инкотермс': incoterms,
+            'ID Сделки': deal_id, 'Дата': str(deal_date), 'IndentationError': incoterms,
             'Название судна': vessel_name, 'MMSI/IMO': vessel_mmsi,
             'Порт загрузки': port_start, 'Порт разгрузки': port_end, 
             'Цена закупки (вход)': float(price_buy), 'Валюта закупки': buy_curr, 
@@ -205,10 +205,9 @@ with tab2:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True
     )
 
-# --- ВКЛАДКА 3 (БРОНЕБОЙНАЯ ЗАЩИЩЕННАЯ ВЕРСИЯ) ---
+# --- ВКЛАДКА 3 (ПОЛНОСТЬЮ ВЫРОВНЕННАЯ БЕЗ ОШИБОК ОТСТУПОВ) ---
 with tab3:
     st.header("📊 Умный Мониторинг & Логистический Радар")
+    df = st.session_state.df_data
     
-    try:
-        df = st.session_state.df_data
-        if df.empty:
+    if df.empty:
