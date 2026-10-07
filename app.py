@@ -40,7 +40,7 @@ st.title("🚢 Платформа CCT1 Enterprise v4.5")
 
 # БОКОВАЯ ПАНЕЛЬ СЕТИНГОВ ДЛЯ ПОДКЛЮЧЕНИЙ
 st.sidebar.header("⚙️ Настройки интеграций")
-sheet_url = st.sidebar.text_input("Ссылка на Google Таблицу:", value="ВСТАВЬТЕ_ССЫЛКУ_СЮДА")
+sheet_url = st.sidebar.text_input("Ссылка на Google Таблицу:", value="https://docs.google.com/spreadsheets/d/1-0xgXn7iZ-EIr40N_lH9JIXyAIoPuMYWUwS7t7f9_fo/edit?usp=drivesdk")
 tg_token = st.sidebar.text_input("Telegram Bot Token:", value="ВАШ_ТОКЕН", type="password")
 tg_chat = st.sidebar.text_input("Telegram Chat ID (Группы):", value="ВАШ_ID")
 
