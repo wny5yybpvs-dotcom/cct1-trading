@@ -2,6 +2,7 @@ import requests
 import math
 from datetime import datetime, timedelta
 
+# БАЗА МИРОВЫХ ПОРТОВ (Опечатка lon полностью исправлена)
 PORTS = {
     "Новороссийск (Россия)": {"lat": 44.72, "lon": 37.78},
     "Санкт-Петербург (Россия)": {"lat": 59.93, "lon": 30.25},
@@ -21,7 +22,8 @@ def haversine(lat1, lon1, lat2, lon2):
     dlat = math.radians(lat2 - lat1)
     dlon = math.radians(lon2 - lon1)
     a = math.sin(dlat / 2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2)**2
-    return R * math.atan2(math.sqrt(a), math.sqrt(1 - a)) * 2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c
 
 def get_live_vessel_data(mmsi_or_imo):
     try:
@@ -35,3 +37,14 @@ def get_live_vessel_data(mmsi_or_imo):
     if str(mmsi_or_imo) == "211281610":
         return 44.721, 37.781, 0.0, "⚠️ Зафиксировано в порту назначения (Новороссийск) | Скорость: 0.0 узлов"
     return 29.93, 32.55, 12.0, "Режим ожидания. Показываем плановые данные."
+
+def send_telegram_message(token, chat_id, text):
+    if not token or not chat_id or "ВАШ" in token or "ВАШ" in chat_id or token.strip() == "":
+        return False
+    try:
+        url = f"https://telegram.org{token.strip()}/sendMessage"
+        payload = {"chat_id": chat_id.strip(), "text": text, "parse_mode": "Markdown"}
+        requests.post(url, json=payload, timeout=5)
+        return True
+    except:
+        return False
