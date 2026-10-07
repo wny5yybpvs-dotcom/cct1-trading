@@ -35,15 +35,15 @@ CURRENCY_RATES = get_exchange_rates()
 
 if "df_data" not in st.session_state or not isinstance(st.session_state.df_data, pd.DataFrame) or st.session_state.df_data.empty:
     st.session_state.df_data = pd.DataFrame([{
-        'ID Сделки': 'DEAL-GLOBAL-PORT', 'Дата': str(datetime.now().date()), 'Инкотермс': 'CIF',
-        'Название судна': 'Vessel Alpha', 'MMSI/IMO': '211281610',
+        'ID Сделки': 'DEAL-TEST-DEMURRAGE', 'Дата': str(datetime.now().date()), 'Статус рейса': 'В пути', 'Инкотермс': 'CIF',
+        'Объем (Тонн)': 5000.0, 'Название судна': 'Vessel Alpha', 'MMSI/IMO': '211281610',
         'Порт загрузки': 'Стамбул', 'Порт разгрузки': 'Новороссийск', 
         'Цена закупки (вход)': 700000.0, 'Валюта закупки': 'CNY', 'Цена продажи (USD)': 180000.0, 
         'Фрахт ($)': 15000.0, 'Пошлины и Страховка ($)': 5000.0, 'Прочие расходы ($)': 2000.0, 
         'Норма простоя (дн)': 3, 'Ставка демереджа ($/сут)': 5000.0,
         'Крайняя дата прибытия': str(datetime.now().date() + timedelta(days=2)),
         'Дата захода в порт': str(datetime.now().date() - timedelta(days=6)),
-        'Демередж ($)': 15000.0, 'Чистая прибыль ($)': 38000.0
+        'Демередж ($)': 15000.0, 'Чистая прибыль ($)': 38000.0, 'Прибыль/Тонна ($)': 7.6
     }])
 
 st.set_page_config(layout="centered", page_title="CCT1 Enterprise")
