@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import os
 from datetime import datetime
 import folium
 from streamlit_folium import st_folium
@@ -22,27 +21,23 @@ if not st.session_state.auth:
             st.error("❌ Неверный пароль")
     st.stop()
 
-# --- ПУТЬ К ФАЙЛУ ХРАНЕНИЯ ДАННЫХ ---
-DATA_FILE = "trading_data.csv"
-
-def load_data():
-    if os.path.exists(DATA_FILE):
-        try:
-            return pd.read_csv(DATA_FILE)
-        except:
-            pass
-    return pd.DataFrame(columns=[
-        'ID Сделки', 'Дата', 'Название sudna', 'MMSI/IMO', 
-        'Цена закупки ($)', 'Цена продажи ($)', 'Фрахт ($)', 
-        'Норма простоя (дн)', 'Ставка демереджа ($/сут)', 
-        'Дней простоя сверх нормы', 'Демередж ($)', 'Чистая прибыль ($)'
-    ])
-
-def save_data(df):
-    df.to_csv(DATA_FILE, index=False)
-
+# --- ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ В ПАМЯТИ ---
 if "df_data" not in st.session_state:
-    st.session_state.df_data = load_data()
+    # Создаем стартовую тестовую строчку, чтобы база не была пустой и карта сразу работала!
+    st.session_state.df_data = pd.DataFrame([{
+        'ID Сделки': 'Тест-01',
+        'Дата': str(datetime.now().date()),
+        'Название судна': 'Vessel Alpha',
+        'MMSI/IMO': '211281610',
+        'Цена закупки ($)': 100000.0,
+        'Цена продажи ($)': 150000.0,
+        'Фрахт ($)': 15000.0,
+        'Норма простоя (дн)': 3,
+        'Ставка демереджа ($/сут)': 5000.0,
+        'Дней простоя сверх нормы': 0,
+        'Демередж ($)': 0.0,
+        'Чистая прибыль ($)': 35000.0
+    }])
 
 # --- ИНТЕРФЕЙС САЙТА ---
 st.set_page_config(layout="centered", page_title="CCT1 Trading & Logistics")
@@ -52,8 +47,7 @@ if st.sidebar.button("Выйти из системы"):
     st.session_state.auth = False
     st.rerun()
 
-# ТРИ ВКЛАДКИ ДЛЯ МОБИЛЬНОЙ ВЕРСИИ
-tab1, tab2, tab3 = st.tabs(["📥 Ввод данных", "📋 База сделок", "📊 Аналитика"])
+tab1, tab2, tab3 = st.tabs(["📥 Ввод данных", "📋 База сделок", "📊 Аналитика и Карта"])
 
 # --- ВКЛАДКА 1: ВВОД ДАННЫХ ---
 with tab1:
@@ -80,62 +74,68 @@ with tab1:
         new_row = {
             'ID Сделки': deal_id,
             'Дата': str(deal_date),
-            'Название sudna': vessel_name,
+            'Название судна': vessel_name,
             'MMSI/IMO': vessel_mmsi,
-            'Цена закупки ($)': price_buy,
-            'Цена продажи ($)': price_sell,
-            'Фрахт ($)': freight,
-            'Норма простоя (дн)': allowed_days,
-            'Ставка демереджа ($/сут)': demurrage_rate,
-            'Дней простоя сверх нормы': days_overdue,
-            'Демередж ($)': demurrage_total,
-            'Чистая прибыль ($)': net_profit
+            'Цена закупки ($)': float(price_buy),
+            'Цена продажи ($)': float(price_sell),
+            'Фрахт ($)': float(freight),
+            'Норма простоя (дн)': int(allowed_days),
+            'Ставка демереджа ($/сут)': float(demurrage_rate),
+            'Дней простоя сверх нормы': int(days_overdue),
+            'Демередж ($)': float(demurrage_total),
+            'Чистая прибыль ($)': float(net_profit)
         }
         
+        # Добавляем данные в сессию телефона
         st.session_state.df_data = pd.concat([st.session_state.df_data, pd.DataFrame([new_row])], ignore_index=True)
-        save_data(st.session_state.df_data)
-        st.success(f"✅ Сделка {deal_id} сохранена!")
+        st.success(f"✅ Сделка {deal_id} успешно добавлена в таблицу!")
+        st.status("Обновление интерфейса...")
         st.rerun()
 
 # --- ВКЛАДКА 2: БАЗА СДЕЛОК ---
 with tab2:
     st.header("Все зарегистрированные сделки")
-    if st.session_state.df_data.empty:
-        st.info("База данных пока пуста.")
-    else:
-        st.dataframe(st.session_state.df_data, use_container_width=True)
-        st.write("---")
-        delete_id = st.selectbox("ID для удаления:", st.session_state.df_data['ID Сделки'].unique())
-        if st.button("❌ Удалить сделку", use_container_width=True):
-            st.session_state.df_data = st.session_state.df_data[st.session_state.df_data['ID Сделки'] != delete_id]
-            save_data(st.session_state.df_data)
-            st.warning(f"Сделка {delete_id} удалена.")
-            st.rerun()
+    st.dataframe(st.session_state.df_data, use_container_width=True)
+    
+    st.write("---")
+    delete_id = st.selectbox("ID для удаления:", st.session_state.df_data['ID Сделки'].unique())
+    if st.button("❌ Удалить сделку", use_container_width=True):
+        st.session_state.df_data = st.session_state.df_data[st.session_state.df_data['ID Сделки'] != delete_id]
+        st.warning(f"Сделка {delete_id} удалена.")
+        st.rerun()
 
 # --- ВКЛАДКА 3: АНАЛИТИКА И КАРТА ---
 with tab3:
     st.header("📈 Финансовые итоги")
-    if st.session_state.df_data.empty:
-        st.info("Нет данных для отображения аналитики.")
-    else:
-        df = st.session_state.df_data
-        
-        st.metric("Всего сделок", len(df))
-        st.metric("Общий демередж", f"${pd.to_numeric(df['Демередж ($)']).sum():,}")
-        st.metric("ОБЩАЯ ЧИСТАЯ ПРИБЫЛЬ", f"${pd.to_numeric(df['Чистая прибыль ($)']).sum():,}")
-        
-        st.write("### Прибыль по сделкам")
-        chart_data = df.set_index('ID Сделки')['Чистая прибыль ($)'].astype(float)
-        st.bar_chart(chart_data)
-        
-        st.write("---")
-        st.subheader("📍 Положение судна")
-        selected_deal = st.selectbox("Сделка для проверки карты:", df['ID Сделки'].unique())
-        vessel_info = df[df['ID Сделки'] == selected_deal].iloc[0]
-        
-        st.write(f"**Судно:** {vessel_info['Название sudna']} | **MMSI:** {vessel_info['MMSI/IMO']}")
-        
-        lat, lon = 29.93, 32.55
-        m = folium.Map(location=[lat, lon], zoom_start=6)
-        folium.Marker([lat, lon], popup=str(vessel_info['Название sudna'])).add_to(m)
-        st_folium(m, width=320, height=300, returned_objects=[])
+    df = st.session_state.df_data
+    
+    # Сводные показатели
+    st.metric("Всего сделок в списке", len(df))
+    st.metric("Общий демередж", f"${df['Демередж ($)'].astype(float).sum():,}")
+    st.metric("ОБЩАЯ ЧИСТАЯ ПРИБЫЛЬ", f"${df['Чистая прибыль ($)'].astype(float).sum():,}")
+    
+    st.write("### Прибыль по сделкам")
+    chart_data = df.set_index('ID Сделки')['Чистая прибыль ($)'].astype(float)
+    st.bar_chart(chart_data)
+    
+    st.write("---")
+    st.subheader("📍 Карта нахождения судна")
+    
+    selected_deal = st.selectbox("Выберите сделку для показа на карте:", df['ID Сделки'].unique())
+    vessel_info = df[df['ID Сделки'] == selected_deal].iloc[0]
+    
+    st.write(f"🚢 **Судно:** {vessel_info['Название судна']} | **MMSI:** {vessel_info['MMSI/IMO']}")
+    
+    # Координаты Суэцкого канала (базовые)
+    lat, lon = 29.93, 32.55
+    
+    # Создаем карту
+    m = folium.Map(location=[lat, lon], zoom_start=5)
+    folium.Marker(
+        [lat, lon], 
+        popup=f"Судно: {vessel_info['Название судна']}",
+        tooltip=str(vessel_info['Название sunda'])
+    ).add_to(m)
+    
+    # Выводим карту на экран смартфона
+    st_folium(m, width=340, height=300, returned_objects=[])
