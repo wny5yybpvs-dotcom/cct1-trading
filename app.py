@@ -6,6 +6,9 @@ from datetime import datetime, date, timedelta
 from streamlit_gsheets import GSheetsConnection
 import helpers
 
+# --- ЖЕСТКОЕ И БЕЗОПАСНОЕ ПОДКЛЮЧЕНИЕ ТАБЛИЦЫ ---
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1-0xgXn7iZ-EIr40N_lH9JIXyAIoPuMYWUwS7t7f9_fo/edit?usp=drivesdk"
+
 COMPANY_PASSWORD = "cct1_trade"
 
 if "auth" not in st.session_state:
@@ -36,11 +39,10 @@ def get_exchange_rates():
 CURRENCY_RATES = get_exchange_rates()
 
 st.set_page_config(layout="centered", page_title="CCT1 Enterprise Pro")
-st.title("🚢 Платформа CCT1 Enterprise v4.5")
+st.title("🚢 Платформа CCT1 Enterprise v4.6")
 
-# БОКОВАЯ ПАНЕЛЬ СЕТИНГОВ ДЛЯ ПОДКЛЮЧЕНИЙ
-st.sidebar.header("⚙️ Настройки интеграций")
-sheet_url = st.sidebar.text_input("Ссылка на Google Таблицу:", value="https://docs.google.com/spreadsheets/d/1-0xgXn7iZ-EIr40N_lH9JIXyAIoPuMYWUwS7t7f9_fo/edit?usp=drivesdk")
+# БОКОВАЯ ПАНЕЛЬ СЕТИНГОВ ДЛЯ TELEGRAM
+st.sidebar.header("⚙️ Настройки Telegram")
 tg_token = st.sidebar.text_input("Telegram Bot Token:", value="ВАШ_ТОКЕН", type="password")
 tg_chat = st.sidebar.text_input("Telegram Chat ID (Группы):", value="ВАШ_ID")
 
@@ -52,14 +54,11 @@ if st.sidebar.button("Выйти из системы"):
     st.session_state.auth = False
     st.rerun()
 
-# ПОДКЛЮЧЕНИЕ ЧТЕНИЯ ИЗ GOOGLE SHEETS
-if "://google.com" in sheet_url:
-    try:
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        df_base = conn.read(spreadsheet=sheet_url, ttl="5s")
-    except:
-        df_base = pd.DataFrame()
-else:
+# ПОДКЛЮЧЕНИЕ ЧТЕНИЯ ИЗ GOOGLE SHEETS БЕЗ ПРОВЕРОК
+try:
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    df_base = conn.read(spreadsheet=SHEET_URL, ttl="5s")
+except:
     df_base = pd.DataFrame()
 
 menu_choice = st.selectbox("📌 ПЕРЕКЛЮЧЕНИЕ РАЗДЕЛОВ САЙТА:", ["📥 Ввод данных", "📋 Реестр сделок (Google Sheets)", "📊 Логистический Радар"])
@@ -90,10 +89,6 @@ if menu_choice == "📥 Ввод данных":
     arrival_date = st.date_input("Дата фактического захода в порт:", value=datetime.now().date())
 
     if st.button("💾 СОХРАНИТЬ В GOOGLE SHEETS И ТЕЛЕГРАМ", type="primary", use_container_width=True):
-        if "://google.com" not in sheet_url:
-            st.error("❌ Сначала вставьте ссылку на вашу Google Таблицу в левое боковое меню!")
-            st.stop()
-            
         actual_freight = 0.0 if incoterms == "FOB" else float(freight)
         days_in_port = (datetime.now().date() - arrival_date).days
         overdue = max(0, days_in_port - allowed_days)
@@ -111,7 +106,7 @@ if menu_choice == "📥 Ввод данных":
         try:
             updated_df = pd.concat([df_base, new_row], ignore_index=True)
             conn = st.connection("gsheets", type=GSheetsConnection)
-            conn.update(spreadsheet=sheet_url, data=updated_df)
+            conn.update(spreadsheet=SHEET_URL, data=updated_df)
             st.success("📊 Сделка вечно сохранена в Google Sheets!")
             
             tg_text = f"📝 *Новая сделка сохранена!*\n\n*ID:* {deal_id}\n*Маршрут:* {port_start} ➡️ {port_end}\n*Прибыль:* ${net_profit:,.2f} USD"
@@ -123,14 +118,14 @@ if menu_choice == "📥 Ввод данных":
 elif menu_choice == "📋 Реестр сделок (Google Sheets)":
     st.subheader("📋 Данные из облака Google Таблиц")
     if df_base.empty:
-        st.info("Настройте ссылку на Google Таблицу в левом боковом меню.")
+        st.info("Таблица пуста или нет связи с Google сервером. Внесите первую сделку.")
     else:
         st.dataframe(df_base, use_container_width=True)
 
 elif menu_choice == "📊 Логистический Радар":
     st.subheader("📊 Мониторинг положения судна онлайн")
     if df_base.empty:
-        st.info("Нет данных. Подключите Google Таблицу со сделками.")
+        st.info("Нет данных. Сначала добавьте сделки через форму ввода.")
     else:
         selected_deal = st.selectbox("Выберите активную сделку:", list(df_base['ID Сделки'].unique()))
         v_list = df_base[df_base['ID Сделки'] == selected_deal].to_dict('records')
