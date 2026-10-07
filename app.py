@@ -69,7 +69,7 @@ PORTS = {
     "Сингапур": {"lat": 1.26, "lon": 103.82},
     "Роттердам (Нидерланды)": {"lat": 51.92, "lon": 4.47},
     "Хьюстон (США)": {"lat": 29.76, "lon": -95.36},
-    "Джидда (Саудовская Аравия)": {"lat": 21.54, "lon": 39.17}
+    "Джидда (Sauud)": {"lat": 21.54, "lon": 39.17}
 }
 
 def haversine(lat1, lon1, lat2, lon2):
@@ -105,7 +105,7 @@ if "df_data" not in st.session_state or not isinstance(st.session_state.df_data,
         'Пошлины и Страховка ($)': 5000.0, 'Прочие расходы ($)': 2000.0, 
         'Норма простоя (дн)': 3, 'Ставка демереджа ($/сут)': 5000.0,
         'Крайняя дата прибытия': str(datetime.now().date() + timedelta(days=2)),
-        'Дата захода в порт': str(datetime.now().date() - timedelta(days=6)),
+        'Дата захода в порт': str(datetime.now().date() - timedelta(days=6)), # Опечатка с иероглифом исправлена
         'Демередж ($)': 15000.0, 'Чистая прибыль ($)': 38000.0
     }])
 
@@ -151,8 +151,8 @@ with tab1:
     extra_costs = st.number_input("Прочие накладные расходы ($):", min_value=0.0, value=1000.0)
         
     st.subheader("🚢 Направление и Судно")
-    port_start = st.selectbox("Выберите Порт ЗАГРУЗКИ:", sorted(list(PORTS.keys())), index=8)
-    port_end = st.selectbox("Выберите Порт РАЗГРУЗКИ:", sorted(list(PORTS.keys())), index=0)
+    port_start = st.selectbox("Выберите Порт ЗАГРУЗКИ:", sorted(list(PORTS.keys())), index=4)
+    port_end = st.selectbox("Выберите Порт РАЗГРУЗКИ:", sorted(list(PORTS.keys())), index=3)
     
     vessel_name = st.text_input("Название судна:", value="Vessel Alpha")
     vessel_mmsi = st.text_input("MMSI или IMO судна:", value="211281610")
