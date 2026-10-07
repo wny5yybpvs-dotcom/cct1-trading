@@ -94,6 +94,72 @@ def get_live_vessel_data(mmsi_or_imo):
         return 44.721, 37.781, 0.0, "⚠️ Зафиксировано в порту назначения (Новороссийск) | Скорость: 0.0 узлов"
     return 29.93, 32.55, 12.0, "Режим ожидания. Показываем плановые данные."
 
+# --- ИНОЗОЛИРОВАННАЯ ФУНКЦИЯ ДЛЯ ТРЕТЬЕЙ ВКЛАДКИ (ЗАЩИТА ОТ INDENTATION ERROR) ---
+def render_radar_tab(df_analysis, tg_token, tg_chat):
+    if df_analysis.empty:
+        st.info("Нет активных сделок для отображения.")
+        return
+
+    selected_deal = st.selectbox("Выберите активную сделку:", list(df_analysis['ID Сделки'].unique()))
+    matching_rows = df_analysis[df_analysis['ID Сделки'] == selected_deal]
+    
+    if matching_rows.empty:
+        st.warning("Сделка не найдена.")
+        return
+
+    v_list = matching_rows.to_dict('records')
+    v_info = v_list[0]
+    
+    st.write(f"🚢 **Судно:** {v_info['Название судна']} | **Базис:** {v_info.get('Инкотермс', 'CIF')}")
+    
+    with st.spinner("Сбор телеметрии судна с радаров AIS..."):
+        v_lat, v_lon, v_speed, status_text = get_live_vessel_data(v_info['MMSI/IMO'])
+    st.info(f"📡 {status_text}")
+    
+    target_port_name = v_info['Port razgruzki'] if 'Port razgruzki' in v_info else v_info['Порт разгрузки']
+    port_coords = PORTS[target_port_name]
+    distance_to_port = haversine(v_lat, v_lon, port_coords['lat'], port_coords['lon'])
+    st.write(f"📏 **Дистанция до причала порта разгрузки:** {round(distance_to_port, 1)} км")
+    
+    # Режим 1: Судно в порту
+    if distance_to_port <= 15.0:
+        st.error("🎯 АВТОМАТИЧЕСКАЯ ФИКСАЦИЯ: Судно находится внутри акватории порта назначения!")
+        entry_date_str = v_info.get('Дата захода в порт', str(datetime.now().date()))
+        entry_date = datetime.strptime(str(entry_date_str), "%Y-%m-%d").date()
+        days_spent = (datetime.now().date() - entry_date).days
+        overdue = max(0, days_spent - int(v_info['Норма простоя (дн)']))
+        auto_demurrage = overdue * float(v_info['Ставка демереджа ($/сут)'])
+        st.error(f"⏳ Сверхнормативный простой в порту: **{overdue} дней** (Всего дней у причала: {days_spent})")
+        st.error(f"🚨 Текущий начисленный демередж: **${auto_demurrage:,}**")
+        
+        if overdue > 0 and st.button("🚨 ОТПРАВИТЬ СИГНАЛ ПО ДЕМЕРЕДЖУ В TELEGRAM", use_container_width=True):
+            alert_text = f"⚠️ *ВНИМАНИЕ! РАСТЕТ ДЕМЕРЕДЖ!*\n\n*Сделка:* {selected_deal}\n*Судно:* {v_info['Название sunda'] if 'Название sunda' in v_info else v_info['Название судна']}\n*Простой:* {overdue} дн.\n*Убыток:* -${auto_demurrage:,}"
+            send_telegram_message(tg_token, tg_chat, alert_text)
+            st.success("🚨 Экстренное уведомление отправлено в чат!")
+            
+    # Режим 2: Судно в море
+    if distance_to_port > 15.0:
+        st.success("🌊 Корабль находится на переходе в море.")
+        if v_speed > 0.5:
+            speed_kmh = v_speed * 1.852
+            hours_left = distance_to_port / speed_kmh
+            days_left = hours_left / 24
+            eta_datetime = datetime.now() + timedelta(hours=hours_left)
+            st.success(f"⏱ **Прогноз прибытия (ETA):** {eta_datetime.strftime('%d.%m.%Y %H:%M')} (осталось: {round(days_left, 1)} дн.)")
+            contract_deadline = datetime.strptime(str(v_info['Крайняя дата прибытия']), "%Y-%m-%d")
+            
+            if eta_datetime > contract_deadline:
+                days_late = (eta_datetime - contract_deadline).days + 1
+                risk_cost = days_late * float(v_info['Ставка демереджа ($/сут)'])
+                st.error(f"🚨 **РИСК ЗАДЕРЖКИ КОНТРАКТА!** Опоздание: {days_late} дн. Прогноз демереджа: **-${risk_cost:,}**")
+            if eta_datetime <= contract_deadline:
+                st.success("✅ **Риски отсутствуют:** Судно идет по графику.")
+        if v_speed <= 0.5:
+            st.warning("⚓️ Судно дрейфует. Динамический расчет ETA приостановлен.")
+            
+    map_df = pd.DataFrame([{'latitude': float(v_lat), 'longitude': float(v_lon)}, {'latitude': float(port_coords['lat']), 'longitude': float(port_coords['lon'])}])
+    st.map(map_df, zoom=3)
+
 # --- ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ В СЕССИИ ---
 if "df_data" not in st.session_state or not isinstance(st.session_state.df_data, pd.DataFrame) or st.session_state.df_data.empty:
     st.session_state.df_data = pd.DataFrame([{
@@ -143,71 +209,3 @@ with tab1:
     if buy_curr != "USD":
         st.caption(f"ℹ️ В эквиваленте: **${round(price_buy_usd, 2):,} USD** по курсу.")
         
-    st.write("---")
-    price_sell = st.number_input("Цена ПРОДАЖИ товара (всегда в $):", min_value=0.0, value=150000.0)
-    
-    freight = st.number_input("Стоимость базового фрахта ($):", min_value=0.0, value=15000.0)
-    duties = st.number_input("Пошлины и страхование ($):", min_value=0.0, value=3000.0)
-    extra_costs = st.number_input("Прочие накладные расходы ($):", min_value=0.0, value=1000.0)
-        
-    st.subheader("🚢 Направление и Судно")
-    port_start = st.selectbox("Выберите Порт ЗАГРУЗКИ:", sorted(list(PORTS.keys())), index=4)
-    port_end = st.selectbox("Выберите Порт РАЗГРУЗКИ:", sorted(list(PORTS.keys())), index=3)
-    
-    vessel_name = st.text_input("Название судна:", value="Vessel Alpha")
-    vessel_mmsi = st.text_input("MMSI или IMO судна:", value="211281610")
-    
-    st.subheader("⏱ Условия контракта и Тайминги")
-    allowed_days = st.number_input("Нормативное время в порту (дней):", min_value=1, value=3)
-    demurrage_rate = st.number_input("Ставка демереджа ($ / сутки):", min_value=0.0, value=5000.0)
-    deadline_date = st.date_input("Крайний срок прибытия (Laycan deadline):", value=datetime.now().date() + timedelta(days=5))
-    arrival_date = st.date_input("Дата фактического захода в порт (если зашло):", value=datetime.now().date())
-
-    st.write("---")
-    
-    if st.button("💾 СОХРАНИТЬ СДЕЛКУ И ОТПРАВИТЬ ОТЧЕТ", type="primary", use_container_width=True):
-        actual_freight = 0.0 if incoterms == "FOB" else float(freight)
-        
-        days_in_port = (datetime.now().date() - arrival_date).days
-        days_overdue = max(0, days_in_port - allowed_days)
-        demurrage_total = days_overdue * demurrage_rate
-        
-        net_profit = float(price_sell) - price_buy_usd - actual_freight - float(duties) - float(extra_costs) - demurrage_total
-        
-        new_row = {
-            'ID Сделки': deal_id, 'Дата': str(deal_date), 'Инкотермс': incoterms,
-            'Название судна': vessel_name, 'MMSI/IMO': vessel_mmsi,
-            'Порт загрузки': port_start, 'Порт разгрузки': port_end, 
-            'Цена закупки (вход)': float(price_buy), 'Валюта закупки': buy_curr, 
-            'Цена продажи (USD)': float(price_sell), 'Фрахт ($)': float(freight), 'Пошлины и Страховка ($)': float(duties),
-            'Прочие расходы ($)': float(extra_costs), 'Норма простоя (дн)': int(allowed_days),
-            'Ставка демереджа ($/сут)': float(demurrage_rate), 'Крайняя дата прибытия': str(deadline_date),
-            'Дата захода в порт': str(arrival_date), 'Демередж ($)': float(demurrage_total), 'Чистая прибыль ($)': float(net_profit)
-        }
-        
-        st.session_state.df_data = pd.concat([st.session_state.df_data, pd.DataFrame([new_row])], ignore_index=True)
-        
-        tg_text = f"📝 *Новая сделка сохранена!*\n\n*ID:* {deal_id}\n*Маршрут:* {port_start} ➡️ {port_end}\n*Прибыль:* ${net_profit:,.2f} USD"
-        send_telegram_message(tg_token, tg_chat, tg_text)
-        st.success(f"✅ Сделка {deal_id} внесена в реестр!")
-        st.rerun()
-
-# --- ВКЛАДКА 2 ---
-with tab2:
-    st.header("📋 Реестр торговых сделок")
-    st.dataframe(st.session_state.df_data, use_container_width=True)
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-        st.session_state.df_data.to_excel(writer, index=False, sheet_name='Сделки CCT1')
-    st.download_button(
-        label="📥 СКАЧАТЬ БАЗУ В EXCEL (.xlsx)", data=buffer.getvalue(),
-        file_name=f"CCT1_Report_{datetime.now().strftime('%Y%m%d')}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True
-    )
-
-# --- ВКЛАДКА 3 (ПРАВИЛЬНЫЙ ВЫВЕДЕННЫЙ СИНТАКСИС) ---
-with tab3:
-    st.header("📊 Умный Мониторинг & Логистический Радар")
-    df_analysis = st.session_state.df_data
-    
-    if df_analysis.empty:
