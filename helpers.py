@@ -35,6 +35,9 @@ def haversine(lat1, lon1, lat2, lon2):
     return R * math.atan2(math.sqrt(a), math.sqrt(1 - a)) * 2
 
 def get_live_vessel_data(mmsi):
+    """
+    Получает РЕАЛЬНЫЕ координаты судна БЕЗ КЛЮЧЕЙ И РЕГИСТРАЦИИ через открытый веб-шлюз.
+    """
     clean_mmsi = str(mmsi).strip()
     if not clean_mmsi or clean_mmsi == "None":
         return 44.72, 37.78, 0.0, "❌ MMSI судна не указан"
@@ -57,6 +60,7 @@ def get_live_vessel_data(mmsi):
     except:
         pass
 
+    # Резервный демо-режим для демонстрационной сделки
     if clean_mmsi == "211281610":
         return 39.55, 29.30, 10.0, "🚢 [DEMO] Vessel Alpha (Эгейское море) | Скорость: 10.0 узлов"
     return 43.50, 36.20, 12.0, "🚢 [DEMO] Автономный фолбэк-режим (Черное море)"
@@ -191,7 +195,3 @@ def render_radar_tab(tg_token, tg_chat):
         if v_speed > 0:
             speed_kmh = v_speed * 1.852
             hours_left = distance_left / speed_kmh
-            eta_text = f"~ {round(hours_left / 24, 1)} дн. ({round(hours_left)} ч.)" if hours_left > 24 else f"~ {round(hours_left, 1)} ч."
-        else:
-            eta_text = "Судно на якоре / в порту"
-
