@@ -128,6 +128,9 @@ def render_radar_tab(tg_token, tg_chat):
     st.subheader("📊 Логистический Радар Зерновозов")
     current_today = datetime.date.today()
     
+    if 'Объем погрузки (Тонн)' in st.session_state.df_data.columns:
+        st.session_state.df_data = st.session_state.df_data.rename(columns={'Объем погрузки (Тонн)': 'Объем (Тонн)'})
+
     updated_rows = []
     for row in st.session_state.df_data.to_dict('records'):
         cargo = float(row.get('Объем (Тонн)', 5000.0))
@@ -154,7 +157,7 @@ def render_radar_tab(tg_token, tg_chat):
     st.session_state.df_data = pd.DataFrame(updated_rows)
 
     if st.session_state.df_data.empty:
-        st.info("Нет активных сделок.")
+        st.info("Нет active сделок.")
         return
 
     selected_deal = st.selectbox("Выберите судно для трекинга:", list(st.session_state.df_data['ID Сделки'].unique()))
@@ -173,6 +176,3 @@ def render_radar_tab(tg_token, tg_chat):
             rate_per_day = float(v_info.get('Норма выгрузки (т/сут)', 1500.0))
             allowed_days = round(cargo / max(1.0, rate_per_day), 1)
             
-            try:
-                arr_dt = datetime.datetime.strptime(str(v_info.get('Дата захода в порт', current_today)), "%Y-%m-%d").date()
-            except:
