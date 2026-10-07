@@ -205,9 +205,9 @@ with tab2:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True
     )
 
-# --- ВКЛАДКА 3 (ПОЛНОСТЬЮ БЕЗОПАСНАЯ ВЕРСИЯ БЕЗ ILOC) ---
+# --- ВКЛАДКА 3 (ПРАВИЛЬНЫЙ ВЫВЕДЕННЫЙ СИНТАКСИС) ---
 with tab3:
     st.header("📊 Умный Мониторинг & Логистический Радар")
-    df = st.session_state.df_data
+    df_analysis = st.session_state.df_data
     
-    if df.empty:
+    if df_analysis.empty:
