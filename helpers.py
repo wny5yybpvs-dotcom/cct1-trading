@@ -61,7 +61,7 @@ def render_input_tab(CURRENCY_RATES, tg_token, tg_chat):
         netback_cpt_usd_per_ton = available_for_grain_usd / cargo_volume
 
         new_row = {
-            'ID Сделки': deal_id, 'Дата': str(deal_date), 'Статус рейса': vessel_status, 'Инкотермс': incoterms,
+            'ID Сделки': deal_id, 'Дата': str(deal_date), 'Статус рейса': vessel_status, 'Indoterms': incoterms,
             'Объем (Тонн)': cargo_volume, 'Название судна': vessel_name, 'MMSI/IMO': "211281610",
             'Порт загрузки': port_start, 'Порт разгрузки': port_end, 
             'Цена закупки (вход)': price_buy_total, 'Валюта закупки': buy_curr, 'Цена продажи (USD)': price_sell_total, 
@@ -138,7 +138,7 @@ def render_radar_tab(tg_token, tg_chat):
         allowed_laydays = cargo / max(1.0, rate_per_day)
         
         try:
-            arr_dt = datetime.datetime.strptime(str(row.get('Дата захода в港', current_today)), "%Y-%m-%d").date()
+            arr_dt = datetime.datetime.strptime(str(row.get('Дата захода в порт', current_today)), "%Y-%m-%d").date()
         except:
             arr_dt = current_today
             
@@ -164,7 +164,6 @@ def render_radar_tab(tg_token, tg_chat):
     v_rows = st.session_state.df_data[st.session_state.df_data['ID Сделки'] == selected_deal].to_dict('records')
     
     if len(v_rows) > 0:
-        # УСПЕШНО ИСПРАВЛЕНО: берём первый индекс списка, чтобы извлечь чистый словарь!
         v_info = v_rows[0]
         
         try:
@@ -175,3 +174,5 @@ def render_radar_tab(tg_token, tg_chat):
             
             cargo = float(v_info.get('Объем (Тонн)', 5000.0))
             rate_per_day = float(v_info.get('Норма выгрузки (т/сут)', 1500.0))
+            allowed_days = round(cargo / max(1.0, rate_per_day), 1)
+            
