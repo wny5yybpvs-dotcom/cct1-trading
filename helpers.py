@@ -138,7 +138,7 @@ def render_radar_tab(tg_token, tg_chat):
         allowed_laydays = cargo / max(1.0, rate_per_day)
         
         try:
-            arr_dt = datetime.datetime.strptime(str(row.get('Дата захода в порт', current_today)), "%Y-%m-%d").date()
+            arr_dt = datetime.datetime.strptime(str(row.get('Дата захода в港', current_today)), "%Y-%m-%d").date()
         except:
             arr_dt = current_today
             
@@ -157,13 +157,14 @@ def render_radar_tab(tg_token, tg_chat):
     st.session_state.df_data = pd.DataFrame(updated_rows)
 
     if st.session_state.df_data.empty:
-        st.info("Нет active сделок.")
+        st.info("Нет активных сделок.")
         return
 
     selected_deal = st.selectbox("Выберите судно для трекинга:", list(st.session_state.df_data['ID Сделки'].unique()))
     v_rows = st.session_state.df_data[st.session_state.df_data['ID Сделки'] == selected_deal].to_dict('records')
     
     if len(v_rows) > 0:
+        # УСПЕШНО ИСПРАВЛЕНО: берём первый индекс списка, чтобы извлечь чистый словарь!
         v_info = v_rows[0]
         
         try:
@@ -174,5 +175,3 @@ def render_radar_tab(tg_token, tg_chat):
             
             cargo = float(v_info.get('Объем (Тонн)', 5000.0))
             rate_per_day = float(v_info.get('Норма выгрузки (т/сут)', 1500.0))
-            allowed_days = round(cargo / max(1.0, rate_per_day), 1)
-            
