@@ -57,7 +57,7 @@ def send_telegram_message(token, chat_id, text):
     except:
         return False
 
-# --- БАЗА МИРОВЫХ ПОРТОВ (ОШИБКА "WON" ИСПРАВЛЕНА НА "LON") ---
+# --- БАЗА МИРОВЫХ ПОРТОВ ---
 PORTS = {
     "Новороссийск (Россия)": {"lat": 44.72, "lon": 37.78},
     "Санкт-Петербург (Россия)": {"lat": 59.93, "lon": 30.25},
@@ -125,16 +125,18 @@ if st.sidebar.button("Выйти из системы"):
     st.session_state.auth = False
     st.rerun()
 
-tab1, tab2, tab3 = st.tabs(["📥 Ввод данных", "📋 База сделок (Excel)", "📊 Аналитика и Умный Радар"])
+# --- УДОБНОЕ ВЫПАДАЮЩЕЕ МЕНЮ ВМЕСТО КАПРИЗНЫХ ВКЛАДОК ---
+st.write("---")
+menu_choice = st.selectbox("📌 ПЕРЕКЛЮЧЕНИЕ РАЗДЕЛОВ САЙТА:", ["📥 Ввод данных", "📋 База сделок (Excel)", "📊 Аналитика и Умный Радар"])
+st.write("---")
 
-# --- ВКЛАДКА 1: ВВОД ДАННЫХ ---
-with tab1:
+# --- РАЗДЕЛ 1: ВВОД ДАННЫХ ---
+if menu_choice == "📥 Ввод данных":
     st.subheader("📦 Финансовые параметры сделки")
     deal_id = st.text_input("ID сделки:", value=f"DEAL-{datetime.now().strftime('%Y%m%d-%H%M')}")
     deal_date = st.date_input("Дата сделки:", value=datetime.now().date())
     incoterms = st.selectbox("Базис поставки (Инкотермс):", ["CIF", "CFR", "FOB"])
     
-    st.write("---")
     st.write("**💵 Закупка товара**")
     buy_curr = st.selectbox("Выберите валюту закупки товара:", ["USD", "CNY", "RUB"])
     price_buy = st.number_input(f"Сумма закупки в выбранной валюте ({buy_curr}):", min_value=0.0, value=100000.0)
@@ -143,9 +145,7 @@ with tab1:
     if buy_curr != "USD":
         st.caption(f"ℹ️ В эквиваленте: **${round(price_buy_usd, 2):,} USD** по курсу.")
         
-    st.write("---")
     price_sell = st.number_input("Цена ПРОДАЖИ товара (всегда в $):", min_value=0.0, value=150000.0)
-    
     freight = st.number_input("Стоимость базового фрахта ($):", min_value=0.0, value=15000.0)
     duties = st.number_input("Пошлины и страхование ($):", min_value=0.0, value=3000.0)
     extra_costs = st.number_input("Прочие накладные расходы ($):", min_value=0.0, value=1000.0)
@@ -167,11 +167,9 @@ with tab1:
     
     if st.button("💾 СОХРАНИТЬ СДЕЛКУ И ОТПРАВИТЬ ОТЧЕТ", type="primary", use_container_width=True):
         actual_freight = 0.0 if incoterms == "FOB" else float(freight)
-        
         days_in_port = (datetime.now().date() - arrival_date).days
         days_overdue = max(0, days_in_port - allowed_days)
         demurrage_total = days_overdue * demurrage_rate
-        
         net_profit = float(price_sell) - price_buy_usd - actual_freight - float(duties) - float(extra_costs) - demurrage_total
         
         new_row = {
@@ -186,15 +184,14 @@ with tab1:
         }
         
         st.session_state.df_data = pd.concat([st.session_state.df_data, pd.DataFrame([new_row])], ignore_index=True)
-        
         tg_text = f"📝 *Новая сделка сохранена!*\n\n*ID:* {deal_id}\n*Маршрут:* {port_start} ➡️ {port_end}\n*Прибыль:* ${net_profit:,.2f} USD"
         send_telegram_message(tg_token, tg_chat, tg_text)
         st.success(f"✅ Сделка {deal_id} внесена в реестр!")
         st.rerun()
 
-# --- ВКЛАДКА 2 ---
-with tab2:
-    st.header("📋 Реестр торговых сделок")
+# --- РАЗДЕЛ 2: РЕЕСТР СДЕЛОК ---
+if menu_choice == "📋 База сделок (Excel)":
+    st.subheader("📋 Реестр торговых сделок")
     st.dataframe(st.session_state.df_data, use_container_width=True)
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
@@ -205,9 +202,4 @@ with tab2:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True
     )
 
-# --- ВКЛАДКА 3 ---
-with tab3:
-    st.header("📊 Умный Мониторинг & Логистический Радар")
-    df_analysis = st.session_state.df_data
-    
-    if df_analysis.empty:
+# --- РАЗДЕЛ 3: АНАЛИТИКА И РАДАР (ПЛОСКАЯ ЛИНЕЙНАЯ СТРУКТУРА) ---
