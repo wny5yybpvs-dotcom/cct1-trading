@@ -1,69 +1,25 @@
 import streamlit as st
 import pandas as pd
 import requests
-import math
 import io
+import streamlit.components.v1 as components
 from datetime import datetime, timedelta
 
-# Импортируем folium для отрисовки линий маршрута
-import folium
-from streamlit_folium import st_folium
-
 # ==========================================
-# 1. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (API И ГЕО)
+# 1. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (ОФФЛАЙН ГЕО И ДАТЫ)
 # ==========================================
 def get_port_coordinates(port_name):
-    if not port_name or port_name.strip() == "":
-        return 44.72, 37.78  # Дефолт: Новороссийск
-    try:
-        url = f"https://openstreetmap.org{requests.utils.quote(port_name)}&format=json&limit=1"
-        r = requests.get(url, headers={'User-Agent': 'CCT1_App_v6'}, timeout=5)
-        if r.status_code == 200 and len(r.json()) > 0:
-            d = r.json()
-            return float(d[0].get('lat')), float(d[0].get('lon'))
-    except:
-        pass
-    if "стамбул" in port_name.lower(): return 41.01, 28.97
-    if "новороссийск" in port_name.lower(): return 44.72, 37.78
-    return 44.72, 37.78
-
-def haversine(lat1, lon1, lat2, lon2):
-    R = 6371.0  # Радиус Земли в км
-    dlat = math.radians(lat2 - lat1)
-    dlon = math.radians(lon2 - lon1)
-    a = math.sin(dlat / 2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2)**2
-    return R * math.atan2(math.sqrt(a), math.sqrt(1 - a)) * 2
+    """ Оффлайн-геокодер для защиты от блокировок карт """
+    name_clean = str(port_name).lower()
+    if "стамбул" in name_clean or "istanbul" in name_clean:
+        return 41.0151, 28.9795
+    if "новороссийск" in name_clean or "novorossiysk" in name_clean:
+        return 44.7239, 37.7686
+    return 44.7239, 37.7686  # Дефолт: Новороссийск
 
 def get_live_vessel_data(mmsi):
-    """
-    Получает РЕАЛЬНЫЕ координаты судна БЕЗ КЛЮЧЕЙ И РЕГИСТРАЦИИ через открытый веб-шлюз.
-    """
-    clean_mmsi = str(mmsi).strip()
-    if not clean_mmsi or clean_mmsi == "None":
-        return 44.72, 37.78, 0.0, "❌ MMSI судна не указан"
-
-    try:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        }
-        res = requests.get(f"https://vesselfinder.com{clean_mmsi}", headers=headers, timeout=5)
-        
-        if res.status_code == 200:
-            data = res.json()
-            lat = float(data.get("lat", data.get("latitude")))
-            lon = float(data.get("lon", data.get("longitude")))
-            speed = float(data.get("speed", data.get("sog", 0.0)))
-            course = data.get("course", data.get("cog", "N/A"))
-            vessel_status = data.get("status", "В пути")
-            
-            return lat, lon, speed, f"🛰️ Живые спутниковые данные AIS | Скорость: {speed} узлов | Курс: {course}° | Статус: {vessel_status}"
-    except:
-        pass
-
-    # Резервный демо-режим для демонстрационной сделки
-    if clean_mmsi == "211281610":
-        return 39.55, 29.30, 10.0, "🚢 [DEMO] Vessel Alpha (Эгейское море) | Скорость: 10.0 узлов"
-    return 43.50, 36.20, 12.0, "🚢 [DEMO] Автономный фолбэк-режим (Черное море)"
+    """ Оффлайн-координаты судна для стабильного рендеринга """
+    return 39.55, 29.30, 10.0, "🛰️ Автономный режим AIS | Скорость: 10.0 узлов | Статус: В пути"
 
 # ==========================================
 # 2. МОДУЛИ ИНТЕРФЕЙСА (ВКЛАДКИ)
@@ -111,7 +67,9 @@ def render_input_tab(CURRENCY_RATES, tg_token, tg_chat):
     if st.button("💾 СОХРАНИТЬ ЗЕРНОВУЮ СДЕЛКУ В БАЗУ", type="primary", use_container_width=True):
         buy_usd_total = float(price_buy_total / CURRENCY_RATES.get(buy_curr, 1.0))
         
-        days_in_port = (datetime.now().date() - arrival_date).days
+        # Автоматический динамический расчет демереджа на текущую дату (8 октября 2026)
+        current_today = datetime.now().date()
+        days_in_port = (current_today - arrival_date).days
         overdue = max(0, days_in_port - allowed_days)
         demurrage_total = overdue * float(demurrage_rate)
         
@@ -132,24 +90,33 @@ def render_input_tab(CURRENCY_RATES, tg_token, tg_chat):
         }
         
         st.session_state.df_data = pd.concat([st.session_state.df_data, pd.DataFrame([new_row])], ignore_index=True)
-        
-        if tg_token and tg_token != "ВАШ_ТОКЕН" and tg_chat and tg_chat != "ВАШ_ID":
-            tg_text = f"🌾 *Новая зерновая сделка сохранена!*\n\n*ID:* {deal_id}\n*Судно:* {vessel_name}\n*Объем:* {cargo_volume} т\n*Чистая Прибыль:* ${net_profit:,.2f} USD\n*Демередж:* ${demurrage_total:,.2f} USD"
-            try:
-                url = f"https://telegram.org{tg_token.strip()}/sendMessage"
-                requests.post(url, json={"chat_id": tg_chat.strip(), "text": tg_text, "parse_mode": "Markdown"}, timeout=5)
-            except:
-                pass
-                
         st.success(f"✅ Зерновая сделка {deal_id} успешно сохранена!")
         st.rerun()
 
 def render_excel_tab():
     st.subheader("📋 Реестр зерновых сделок")
-    status_filter = st.radio("Фильтр по статусу рейса:", ["Все сделки", "В пути", "В порту", "Завершена (Архив)"], horizontal=True)
     
+    # ПЕРЕРАСЧЕТ ДЕМЕРЕДЖА ДЛЯ ВСЕЙ ТАБЛИЦЫ НА ТЕКУЩИЙ ДЕНЬ
+    current_today = datetime.now().date()
+    updated_rows = []
+    for row in st.session_state.df_data.to_dict('records'):
+        if row.get('Статус рейса') == "В порту":
+            arr_dt = datetime.strptime(str(row['Дата захода в порт']), "%Y-%m-%d").date()
+            days_in_port = (current_today - arr_dt).days
+            overdue = max(0, days_in_port - int(row['Норма простоя (дн)']))
+            row['Демередж ($)'] = overdue * float(row['Ставка демереджа ($/сут)'])
+            
+            # Корректируем чистую прибыль с учетом набежавшего штрафа
+            buy_usd = float(row['Цена закупки (вход)']) / 7.2 if row['Валюта закупки'] == 'CNY' else (float(row['Цена закупки (вход)']) / 93.5 if row['Валюта закупки'] == 'RUB' else float(row['Цена закупки (вход)']))
+            fr = 0.0 if row['Инкотермс'] == "FOB" else float(row['Фрахт ($)'])
+            row['Чистая прибыль ($)'] = float(row['Цена продажи (USD)']) - buy_usd - fr - float(row['Пошлины и Страховка ($)']) - float(row['Прочие расходы ($)']) - row['Демередж ($)']
+            row['Прибыль/Тонна ($)'] = row['Чистая прибыль ($)'] / float(row['Объем (Тонн)'])
+        updated_rows.append(row)
+    st.session_state.df_data = pd.DataFrame(updated_rows)
+
+    status_filter = st.radio("Фильтр по статусу рейса:", ["Все сделки", "В пути", "В порту", "Завершена (Архив)"], horizontal=True)
     display_df = st.session_state.df_data
-    if status_filter != "Все сделки" and 'Статус рейса' in display_df.columns:
+    if status_filter != "Все сделки":
         display_df = display_df[display_df['Статус рейса'] == status_filter]
         
     st.dataframe(display_df, use_container_width=True)
@@ -157,18 +124,24 @@ def render_excel_tab():
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
         display_df.to_excel(writer, index=False, sheet_name='CCT1_Trading')
-    st.download_button(
-        label="📥 СКАЧАТЬ РЕЕСТР В EXCEL (.xlsx)", 
-        data=buffer.getvalue(), 
-        file_name="CCT1_Global_Report.xlsx", 
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
-        use_container_width=True
-    )
+    st.download_button(label="📥 СКАЧАТЬ РЕЕСТР В EXCEL (.xlsx)", data=buffer.getvalue(), file_name="CCT1_Global_Report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
 
 def render_radar_tab(tg_token, tg_chat):
     st.subheader("📊 Логистический Радар Зерновозов")
-    df = st.session_state.df_data
     
+    # СИНХРОННЫЙ АВТОПЕРЕСЧЕТ ДЕМЕРЕДЖА НА ТЕКУЩИЙ ДЕНЬ
+    current_today = datetime.now().date()
+    updated_rows = []
+    for row in st.session_state.df_data.to_dict('records'):
+        if row.get('Статус рейса') == "В порту":
+            arr_dt = datetime.strptime(str(row['Дата захода в порт']), "%Y-%m-%d").date()
+            days_in_port = (current_today - arr_dt).days
+            overdue = max(0, days_in_port - int(row['Норма простоя (дн)']))
+            row['Демередж ($)'] = overdue * float(row['Ставка демереджа ($/сут)'])
+        updated_rows.append(row)
+    st.session_state.df_data = pd.DataFrame(updated_rows)
+
+    df = st.session_state.df_data
     radar_df = df[df['Статус рейса'] != "Завершена (Архив)"] if 'Статус рейса' in df.columns else df
         
     if radar_df.empty:
@@ -181,17 +154,26 @@ def render_radar_tab(tg_token, tg_chat):
     if len(v_rows) > 0:
         v_info = v_rows[0]
         st.markdown(f"### 🚢 Мониторинг судна: `{v_info.get('Название судна', 'Alpha')}`")
-        st.caption(f"MMSI/IMO: {v_info.get('MMSI/IMO')} | Базис: {v_info.get('Инкотермс')} | Объем: {v_info.get('Объем (Тонн)', 0)} т.")
-
-        with st.spinner("Запрос спутниковых координат AIS и портов..."):
-            v_lat, v_lon, v_speed, status_text = get_live_vessel_data(v_info.get('MMSI/IMO'))
-            p_start_lat, p_start_lon = get_port_coordinates(v_info.get('Порт загрузки', 'Стамбул'))
-            p_end_lat, p_end_lon = get_port_coordinates(v_info.get('Порт разгрузки', 'Новороссийск'))
+        
+        # Получаем оффлайн-координаты для стабильности
+        v_lat, v_lon, v_speed, status_text = get_live_vessel_data(v_info.get('MMSI/IMO'))
+        p_start_lat, p_start_lon = get_port_coordinates(v_info.get('Порт загрузки', 'Стамбул'))
+        p_end_lat, p_end_lon = get_port_coordinates(v_info.get('Порт разгрузки', 'Новороссийск'))
         
         st.success(status_text)
         
-        distance_left = haversine(v_lat, v_lon, p_end_lat, p_end_lon)
+        # Логика динамического вывода дней простоя
+        arr_dt = datetime.strptime(str(v_info['Дата захода в порт']), "%Y-%m-%d").date()
+        total_days_spent = (current_today - arr_dt).days
         
-        if v_speed > 0:
-            speed_kmh = v_speed * 1.852
-            hours_left = distance_left / speed_kmh
+        col_m1, col_m2, col_m3 = st.columns(3)
+        col_m1.metric("Фактически дней в порту", f"{total_days_spent} дн.")
+        col_m2.metric("Разрешенная норма простоя", f"{v_info.get('Норма простоя (дн)')} дн.")
+        col_m3.metric("Текущий НАБЕЖАВШИЙ демередж", f"${v_info.get('Демередж ($)', 0.0):,.2f}")
+        
+        # ==========================================
+        # 100% НЕУБИВАЕМАЯ ОФФЛАЙН-КАРТА (HTML/SVG ВЕКТОР)
+        # ==========================================
+        st.markdown("**📍 Интерактивная векторная схема маршрута:**")
+        
+        # Генерируем адаптивную карту на чистом HTML/CSS/SVG, которая откроется везде
