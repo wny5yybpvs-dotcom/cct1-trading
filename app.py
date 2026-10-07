@@ -33,7 +33,6 @@ def get_exchange_rates():
 
 CURRENCY_RATES = get_exchange_rates()
 
-# Полностью очищаем старую структуру при несовпадении колонок
 if "df_data" not in st.session_state or "Влажность (%)" not in st.session_state.df_data.columns:
     st.session_state.df_data = pd.DataFrame([{
         'ID Сделки': 'DEAL-TEST-GRAIN', 'Дата': str(datetime.now().date()), 'Статус рейса': 'В порту', 'Инкотермс': 'CIF',
