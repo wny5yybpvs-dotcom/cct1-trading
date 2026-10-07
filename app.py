@@ -205,7 +205,7 @@ with tab2:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True
     )
 
-# --- ВКЛАДКА 3 (КОД СТАЛ АБСОЛЮТНО ЛИНЕЙНЫМ, СБОЙ ОТСТУПОВ ИСКЛЮЧЕН) ---
+# --- ВКЛАДКА 3 (БРОНЕБОЙНАЯ, БЕЗУПРЕЧНАЯ ПО СИНТАКСИСУ СТРУКТУРА) ---
 with tab3:
     st.header("📊 Умный Мониторинг & Логистический Радар")
     df_analysis = st.session_state.df_data
