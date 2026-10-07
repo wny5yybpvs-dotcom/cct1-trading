@@ -5,6 +5,10 @@ import math
 import io
 from datetime import datetime, timedelta
 
+# Импортируем folium для отрисовки линий маршрута
+import folium
+from streamlit_folium import st_folium
+
 # ==========================================
 # 1. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (API И ГЕО)
 # ==========================================
@@ -31,9 +35,6 @@ def haversine(lat1, lon1, lat2, lon2):
     return R * math.atan2(math.sqrt(a), math.sqrt(1 - a)) * 2
 
 def get_live_vessel_data(mmsi):
-    """
-    Получает РЕАЛЬНЫЕ координаты судна БЕЗ КЛЮЧЕЙ И РЕГИСТРАЦИИ через открытый веб-шлюз.
-    """
     clean_mmsi = str(mmsi).strip()
     if not clean_mmsi or clean_mmsi == "None":
         return 44.72, 37.78, 0.0, "❌ MMSI судна не указан"
@@ -56,7 +57,6 @@ def get_live_vessel_data(mmsi):
     except:
         pass
 
-    # Резервный демо-режим для демонстрационной сделки
     if clean_mmsi == "211281610":
         return 39.55, 29.30, 10.0, "🚢 [DEMO] Vessel Alpha (Эгейское море) | Скорость: 10.0 узлов"
     return 43.50, 36.20, 12.0, "🚢 [DEMO] Автономный фолбэк-режим (Черное море)"
@@ -92,7 +92,7 @@ def render_input_tab(CURRENCY_RATES, tg_token, tg_chat):
         vessel_name = st.text_input("Название судна:", value="Vessel Alpha")
         vessel_mmsi = st.text_input("MMSI или IMO судна:", value="211281610")
     with col6:
-        freight = st.number_input("Стоимость фрахта сусна ($):", min_value=0.0, value=15000.0)
+        freight = st.number_input("Стоимость фрахта судна ($):", min_value=0.0, value=15000.0)
         duties = st.number_input("Пошлины, Страховка и Сертификаты ($):", min_value=0.0, value=5000.0)
         extra_costs = st.number_input("Прочие накладные расходы на рейс ($):", min_value=0.0, value=2000.0)
         allowed_days = st.number_input("Норма простоя на выгрузку (дней):", min_value=1, value=3)
@@ -179,8 +179,9 @@ def render_radar_tab(tg_token, tg_chat):
         st.markdown(f"### 🚢 Мониторинг судна: `{v_info.get('Название судна', 'Alpha')}`")
         st.caption(f"MMSI/IMO: {v_info.get('MMSI/IMO')} | Базис: {v_info.get('Инкотермс')} | Объем: {v_info.get('Объем (Тонн)', 0)} т.")
 
-        with st.spinner("Запрос спутниковых координат AIS..."):
+        with st.spinner("Запрос спутниковых координат AIS и портов..."):
             v_lat, v_lon, v_speed, status_text = get_live_vessel_data(v_info.get('MMSI/IMO'))
+            p_start_lat, p_start_lon = get_port_coordinates(v_info.get('Порт загрузки', 'Стамбул'))
             p_end_lat, p_end_lon = get_port_coordinates(v_info.get('Порт разгрузки', 'Новороссийск'))
         
         st.success(status_text)
@@ -194,4 +195,3 @@ def render_radar_tab(tg_token, tg_chat):
         else:
             eta_text = "Судно на якоре / в порту"
 
-        col_m1, col_m2, col_m3 = st.columns(3)
