@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import io
-from datetime import datetime, timedelta
+import datetime  # Используем явный импорт модуля даты без конфликтов имен
 
 # ==========================================
 # 1. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
@@ -15,24 +15,35 @@ def get_live_vessel_data(mmsi):
 def render_input_tab(CURRENCY_RATES, tg_token, tg_chat):
     st.subheader("📥 Ввод зерновой сделки & Калькулятор Паритета")
     
-    deal_id = st.text_input("ID сделки:", value=f"DEAL-{datetime.now().strftime('%Y%m%d-%H%M')}")
-    vessel_status = st.selectbox("🚦 Статус рейса:", ["В порту", "В пути", "Завершена (Архив)"])
-    incoterms = st.selectbox("Базис поставки:", ["CIF", "CFR", "FOB"])
-    cargo_volume = st.number_input("Объем погрузки (Брутто Тонн):", min_value=1.0, value=5000.0, step=100.0)
-    deal_date = st.date_input("Дата сделки:", value=datetime.now().date())
-    vessel_name = st.text_input("Название судна:", value="Vessel Alpha")
-    port_start = st.text_input("Порт ЗАГРУЗКИ:", value="Стамбул")
-    port_end = st.text_input("Порт РАЗГРУЗКИ:", value="Новороссийск")
+    # Базовые временные переменные через чистый datetime
+    today_dt = datetime.date.today()
+    default_laycan = today_dt + datetime.timedelta(days=2)
+    default_arrival = today_dt - datetime.timedelta(days=6)
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        deal_id = st.text_input("ID сделки:", value=f"DEAL-{datetime.datetime.now().strftime('%Y%m%d-%H%M')}")
+        vessel_status = st.selectbox("🚦 Статус рейса:", ["В порту", "В пути", "Завершена (Архив)"])
+        incoterms = st.selectbox("Базис поставки:", ["CIF", "CFR", "FOB"])
+        cargo_volume = st.number_input("Объем погрузки (Брутто Тонн):", min_value=1.0, value=5000.0, step=100.0)
+    with col2:
+        deal_date = st.date_input("Дата сделки:", value=today_dt)
+        vessel_name = st.text_input("Название судна:", value="Vessel Alpha")
+        port_start = st.text_input("Порт ЗАГРУЗКИ:", value="Стамбул")
+        port_end = st.text_input("Порт РАЗГРУЗКИ:", value="Новороссийск")
 
     st.subheader("🌾 Качество зерна (Расчет Рефакции веса)")
     moisture = st.number_input("Влажность фактическая (%)", min_value=0.0, max_value=30.0, value=14.5, step=0.1)
     admixture = st.number_input("Сорная примесь фактическая (%)", min_value=0.0, max_value=20.0, value=2.5, step=0.1)
 
     st.subheader("💵 Экономика & Ценовой Паритет (Netback)")
-    buy_curr = st.selectbox("Валюта закупки:", ["USD", "CNY", "RUB"])
-    price_buy_total = st.number_input(f"Фактическая цена закупки груза ({buy_curr}):", min_value=0.0, value=700000.0)
-    price_sell_total = st.number_input("Цена продажи контракта ($ USD):", min_value=0.0, value=180000.0)
-    target_margin_per_ton = st.number_input("Желаемая чистая маржа трейдера ($ / тонну):", min_value=0.0, value=10.0)
+    col5, col6 = st.columns(2)
+    with col5:
+        buy_curr = st.selectbox("Валюта закупки:", ["USD", "CNY", "RUB"])
+        price_buy_total = st.number_input(f"Фактическая цена закупки груза ({buy_curr}):", min_value=0.0, value=700000.0)
+        price_sell_total = st.number_input("Цена продажи контракта ($ USD):", min_value=0.0, value=180000.0)
+    with col6:
+        target_margin_per_ton = st.number_input("Желаемая чистая маржа трейдера ($ / тонну):", min_value=0.0, value=10.0)
 
     st.subheader("🚢 Сталийное время, Фрахт & Пошлины")
     freight = st.number_input("Стоимость фрахта судна ($):", min_value=0.0, value=15000.0)
@@ -40,7 +51,7 @@ def render_input_tab(CURRENCY_RATES, tg_token, tg_chat):
     extra_costs = st.number_input("Прочие расходы, анализы ГХС ($):", min_value=0.0, value=2000.0)
     discharge_rate = st.number_input("Контрактная норма выгрузки (Тонн / сутки):", min_value=1.0, value=1500.0)
     demurrage_rate = st.number_input("Ставка демереджа ($ / сутки):", min_value=0.0, value=5000.0)
-    arrival_date = st.date_input("Дата фактического захода в порт:", value=datetime.now().date() - timedelta(days=6))
+    arrival_date = st.date_input("Дата фактического захода в порт:", value=default_arrival)
 
     if st.button("💾 СОХРАНИТЬ СДЕЛКУ ТРЕЙДЕРА В БАЗУ", type="primary", use_container_width=True):
         moisture_loss = max(0.0, (moisture - 14.0) / 100.0) * cargo_volume
@@ -60,7 +71,7 @@ def render_input_tab(CURRENCY_RATES, tg_token, tg_chat):
             'Цена закупки (вход)': price_buy_total, 'Валюта закупки': buy_curr, 'Цена продажи (USD)': price_sell_total, 
             'Фрахт ($)': actual_freight, 'Экспортная пошлина ($)': float(duties), 'Прочие расходы ($)': float(extra_costs), 
             'Норма выгрузки (т/сут)': discharge_rate, 'Ставка демереджа ($/сут)': float(demurrage_rate),
-            'Крайняя дата прибытия': str(datetime.now().date() + timedelta(days=2)), 
+            'Крайняя дата прибытия': str(default_laycan), 
             'Дата захода в порт': str(arrival_date),
             'Влажность (%)': moisture, 'Сорная примесь (%)': admixture,
             'Рефакция веса (Тонн)': round(total_refaction, 1), 'Объем выгрузки (Тонн)': round(delivered_volume, 1),
@@ -73,9 +84,8 @@ def render_input_tab(CURRENCY_RATES, tg_token, tg_chat):
 
 def render_excel_tab():
     st.subheader("📋 Реестр торговых сделок")
-    current_today = datetime.now().date()
+    current_today = datetime.date.today()
     
-    # ЗАЩИТА: Синхронизируем старые названия колонок, если они застряли в кэше сервера
     if not st.session_state.df_data.empty:
         if 'Объем погрузки (Тонн)' in st.session_state.df_data.columns:
             st.session_state.df_data = st.session_state.df_data.rename(columns={'Объем погрузки (Тонн)': 'Объем (Тонн)'})
@@ -88,7 +98,11 @@ def render_excel_tab():
         rate_per_day = float(row.get('Норма выгрузки (т/сут)', 1500.0))
         allowed_laydays = cargo / max(1.0, rate_per_day)
         
-        arr_dt = datetime.strptime(str(row.get('Дата захода в порт', current_today)), "%Y-%m-%d").date()
+        try:
+            arr_dt = datetime.datetime.strptime(str(row.get('Дата захода в порт', current_today)), "%Y-%m-%d").date()
+        except:
+            arr_dt = current_today
+            
         days_in_port = (current_today - arr_dt).days
         overdue = max(0.0, float(days_in_port) - allowed_laydays)
         row['Демередж ($)'] = overdue * float(row.get('Ставка демереджа ($/сут)', 0.0))
@@ -118,9 +132,8 @@ def render_excel_tab():
 
 def render_radar_tab(tg_token, tg_chat):
     st.subheader("📊 Логистический Радар Зерновозов")
-    current_today = datetime.now().date()
+    current_today = datetime.date.today()
     
-    # ЗАЩИТА КЭША НА СЕРВЕРЕ STREAMLIT CLOUD
     if 'Объем погрузки (Тонн)' in st.session_state.df_data.columns:
         st.session_state.df_data = st.session_state.df_data.rename(columns={'Объем погрузки (Тонн)': 'Объем (Тонн)'})
     if 'Фрахт (\$)' in st.session_state.df_data.columns:
@@ -132,7 +145,11 @@ def render_radar_tab(tg_token, tg_chat):
         rate_per_day = float(row.get('Норма выгрузки (т/сут)', 1500.0))
         allowed_laydays = cargo / max(1.0, rate_per_day)
         
-        arr_dt = datetime.strptime(str(row.get('Дата захода в порт', current_today)), "%Y-%m-%d").date()
+        try:
+            arr_dt = datetime.datetime.strptime(str(row.get('Дата захода в порт', current_today)), "%Y-%m-%d").date()
+        except:
+            arr_dt = current_today
+            
         days_in_port = (current_today - arr_dt).days
         overdue = max(0.0, float(days_in_port) - allowed_laydays)
         row['Демередж ($)'] = overdue * float(row.get('Ставка демереджа ($/сут)', 0.0))
@@ -152,12 +169,3 @@ def render_radar_tab(tg_token, tg_chat):
         return
 
     selected_deal = st.selectbox("Выберите судно для трекинга:", list(st.session_state.df_data['ID Сделки'].unique()))
-    v_rows = st.session_state.df_data[st.session_state.df_data['ID Сделки'] == selected_deal].to_dict('records')
-    
-    if len(v_rows) > 0:
-        v_info = v_rows[0] # ЖЕСТКОЕ ИЗВЛЕЧЕНИЕ ПЕРВОЙ ЗАПИСИ
-        
-        # ТОТАЛЬНАЯ TRY-EXCEPT ЗАЩИТА ИНТЕРФЕЙСА ОТ ЛЮБЫХ КРИТИЧЕСКИХ СБОЕВ
-        try:
-            st.markdown(f"### 🚢 Оперативный трекинг: `{v_info.get('Название судна', 'Alpha')}`")
-            
