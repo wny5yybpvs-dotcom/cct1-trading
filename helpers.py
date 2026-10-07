@@ -61,7 +61,7 @@ def render_input_tab(CURRENCY_RATES, tg_token, tg_chat):
         netback_cpt_usd_per_ton = available_for_grain_usd / cargo_volume
 
         new_row = {
-            'ID Сделки': deal_id, 'Дата': str(deal_date), 'Статус рейса': vessel_status, 'Indoterms': incoterms,
+            'ID Сделки': deal_id, 'Дата': str(deal_date), 'Статус рейса': vessel_status, 'Инкотермс': incoterms,
             'Объем (Тонн)': cargo_volume, 'Название судна': vessel_name, 'MMSI/IMO': "211281610",
             'Порт загрузки': port_start, 'Порт разгрузки': port_end, 
             'Цена закупки (вход)': price_buy_total, 'Валюта закупки': buy_curr, 'Цена продажи (USD)': price_sell_total, 
@@ -167,7 +167,7 @@ def render_radar_tab(tg_token, tg_chat):
         v_info = v_rows[0]
         
         try:
-            st.markdown(f"### 🚢 Оперативный трекинг: `{v_info.get('Название судна', 'Alpha')}`")
+            st.markdown(f"### 🚢 Оперативный трекикинг: `{v_info.get('Название судна', 'Alpha')}`")
             
             lat, lon, speed, status_text = get_live_vessel_data(v_info.get('MMSI/IMO'))
             st.success(status_text)
