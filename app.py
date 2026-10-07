@@ -46,7 +46,7 @@ if "df_data" not in st.session_state or not isinstance(st.session_state.df_data,
         'Демередж ($)': 15000.0, 'Чистая прибыль ($)': 38000.0, 'Прибыль/Тонна ($)': 7.6
     }])
 
-st.set_page_config(layout="centered", page_title="CCT1 Enterprise")
+st.set_page_config(layout="wide", page_title="CCT1 Enterprise")
 st.title("🚢 Платформа CCT1 Global Tracker")
 
 st.sidebar.header("💱 Живой курс валют")
@@ -57,7 +57,6 @@ st.sidebar.header("🤖 Настройки Telegram")
 tg_token = st.sidebar.text_input("Telegram Bot Token:", value="ВАШ_ТОКЕН", type="password")
 tg_chat = st.sidebar.text_input("Telegram Chat ID:", value="ВАШ_ID")
 
-# КНОПКИ ВЫБОРА РАЗДЕЛОВ
 menu_choice = st.selectbox("📌 ПЕРЕКЛЮЧЕНИЕ РАЗДЕЛОВ САЙТА:", ["📥 Ввод данных", "📋 Реестр сделок (Excel)", "📊 Логистический Радар"])
 
 if menu_choice == "📥 Ввод данных":
