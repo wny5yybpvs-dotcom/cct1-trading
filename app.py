@@ -22,21 +22,43 @@ if not st.session_state.auth:
             st.error("❌ Неверный пароль")
     st.stop()
 
+# --- ФУНКЦИЯ ПОЛУЧЕНИЯ АКТУАЛЬНЫХ КУРСОВ ВАЛЮТ ---
+@st.cache_data(ttl=3600)  # Курс обновляется раз в час, чтобы сайт работал быстро
+def get_exchange_rates():
+    try:
+        # Используем бесплатное и стабильное API курсов валют
+        url = "https://er-api.com"
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            rates = response.json().get("rates", {})
+            return {
+                "USD": 1.0,
+                "RUB": rates.get("RUB", 93.5),   # Если API сбоит, подставятся базовые курсы
+                "CNY": rates.get("CNY", 7.2)
+            }
+    except:
+        pass
+    return {"USD": 1.0, "RUB": 93.5, "CNY": 7.2}
+
+# Получаем живые курсы валют
+CURRENCY_RATES = get_exchange_rates()
+
+# --- ФУНКЦИЯ КОНВЕРТАЦИИ В USD ---
+def convert_to_usd(amount, from_currency):
+    rate = CURRENCY_RATES.get(from_currency, 1.0)
+    return float(amount / rate)
+
 # --- ФУНКЦИЯ ОТПРАВКИ В TELEGRAM ---
 def send_telegram_message(token, chat_id, text):
     if not token or not chat_id or token == "ВАШ_ТОКЕН" or chat_id == "ВАШ_ID" or token.strip() == "" or chat_id.strip() == "":
-        return False, "⚠️ Ключи Telegram не заполнены в боковом меню."
+        return False, "⚠️ Ключи Telegram не заполнены."
     try:
         url = f"https://telegram.org{token.strip()}/sendMessage"
         payload = {"chat_id": chat_id.strip(), "text": text, "parse_mode": "Markdown"}
         response = requests.post(url, json=payload, timeout=5)
-        if response.status_code == 200:
-            return True, "Успешно!"
-        else:
-            error_desc = response.json().get("description", "Неизвестная ошибка")
-            return False, f"Ошибка Telegram: {error_desc}"
-    except Exception as e:
-        return False, f"Ошибка сети: {str(e)}"
+        return response.status_code == 200
+    except:
+        return False
 
 # --- БАЗА МИРОВЫХ ПОРТОВ ---
 PORTS = {
@@ -78,19 +100,25 @@ def get_live_vessel_data(mmsi_or_imo):
 # --- НАДЕЖНАЯ ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ В СЕССИИ ---
 if "df_data" not in st.session_state or not isinstance(st.session_state.df_data, pd.DataFrame) or st.session_state.df_data.empty:
     st.session_state.df_data = pd.DataFrame([{
-        'ID Сделки': 'DEAL-TEST-ETA', 'Дата': str(datetime.now().date()), 'Инкотермс': 'CIF',
+        'ID Сделки': 'DEAL-MULTI-CURR', 'Дата': str(datetime.now().date()), 'Инкотермс': 'CIF',
         'Название судна': 'Vessel Alpha', 'MMSI/IMO': '211281610',
         'Порт загрузки': 'Стамбул (Турция)', 'Порт разгрузки': 'Новороссийск (Россия)', 
-        'Цена закупки ($)': 100000.0, 'Цена продажи ($)': 180000.0, 'Фрахт ($)': 15000.0, 
+        'Цена закупки (вход)': 700000.0, 'Валюта закупки': 'CNY',
+        'Цена продажи (USD)': 150000.0, 'Фрахт ($)': 15000.0, 
         'Пошлины и Страховка ($)': 5000.0, 'Прочие расходы ($)': 2000.0, 
         'Норма простоя (дн)': 3, 'Ставка демереджа ($/сут)': 5000.0,
         'Крайняя дата прибытия': str(datetime.now().date() + timedelta(days=2)),
-        'Демередж ($)': 0.0, 'Чистая прибыль ($)': 58000.0
+        'Демередж ($)': 0.0, 'Чистая прибыль ($)': 30800.0
     }])
 
 # --- ИНТЕРФЕЙС ---
 st.set_page_config(layout="centered", page_title="CCT1 Trading & Logistics")
-st.title("🚢 Платформа CCT1 Enterprise Pro")
+st.title("🚢 Платформа CCT1 Мультивалютная")
+
+# Вывод текущих курсов в боковую панель для контроля
+st.sidebar.header("💱 Живой курс валют (к USD)")
+st.sidebar.write(f"💵 1 USD = **{round(CURRENCY_RATES['RUB'], 2)}** RUB")
+st.sidebar.write(f"🇨🇳 1 USD = **{round(CURRENCY_RATES['CNY'], 2)}** CNY")
 
 st.sidebar.header("🤖 Настройки Telegram")
 tg_token = st.sidebar.text_input("Telegram Bot Token:", value="ВАШ_ТОКЕН", type="password")
@@ -109,14 +137,21 @@ with tab1:
     deal_date = st.date_input("Дата сделки:", value=datetime.now().date())
     incoterms = st.selectbox("Базис поставки (Инкотермс):", ["CIF", "CFR", "FOB"])
     
-    price_buy = st.number_input("Цена закупки товара ($):", min_value=0.0, value=100000.0)
-    price_sell = st.number_input("Цена продажи товара ($):", min_value=0.0, value=150000.0)
+    # --- БЛОК МУЛЬТИВАЛЮТНОЙ ЗАКУПКИ ---
+    st.write("---")
+    st.write("**💵 Закупка товара**")
+    buy_curr = st.selectbox("Выберите валюту закупки товара:", ["USD", "CNY", "RUB"])
+    price_buy = st.number_input(f"Сумма закупки в выбранной валюте ({buy_curr}):", min_value=0.0, value=100000.0)
     
-    # Подсказка по Инкотермс
-    if incoterms == "FOB":
-        st.caption("💡 При FOB фрахт оплачивает покупатель. Поле фрахта не будет вычитаться из вашей прибыли.")
+    # Конвертируем закупку в USD для внутренних расчетов
+    price_buy_usd = convert_to_usd(price_buy, buy_curr)
+    if buy_curr != "USD":
+        st.caption(f"ℹ️ В эквиваленте: **${round(price_buy_usd, 2):,} USD** по текущему курсу.")
+        
+    st.write("---")
+    price_sell = st.number_input("Цена ПРОДАЖИ товара (всегда в $):", min_value=0.0, value=150000.0)
+    
     freight = st.number_input("Стоимость базового фрахта ($):", min_value=0.0, value=15000.0)
-    
     duties = st.number_input("Пошлины и страхование ($):", min_value=0.0, value=3000.0)
     extra_costs = st.number_input("Прочие накладные расходы ($):", min_value=0.0, value=1000.0)
         
@@ -127,36 +162,34 @@ with tab1:
     vessel_name = st.text_input("Название судна:", value="Vessel Alpha")
     vessel_mmsi = st.text_input("MMSI или IMO судна:", value="211281610")
     
-    st.subheader("⏱ Плановое расписание рейса")
+    st.subheader("⏱ Условия контракта")
     allowed_days = st.number_input("Нормативное время в порту (дней):", min_value=1, value=3)
     demurrage_rate = st.number_input("Ставка демереджа ($ / сутки):", min_value=0.0, value=5000.0)
-    deadline_date = st.date_input("Крайний срок прибытия по контракту (Laycan deadline):", value=datetime.now().date() + timedelta(days=5))
+    deadline_date = st.date_input("Крайний срок прибытия (Laycan deadline):", value=datetime.now().date() + timedelta(days=5))
 
     st.write("---")
     
     if st.button("💾 СОХРАНИТЬ СДЕЛКУ И ОТПРАВИТЬ ОТЧЕТ", type="primary", use_container_width=True):
-        # Логика Инкотермс
         actual_freight = 0.0 if incoterms == "FOB" else float(freight)
-        net_profit = price_sell - price_buy - actual_freight - duties - extra_costs
+        
+        # Финальный расчет прибыли с учетом конвертации закупки в USD
+        net_profit = float(price_sell) - price_buy_usd - actual_freight - float(duties) - float(extra_costs)
         
         new_row = {
             'ID Сделки': deal_id, 'Дата': str(deal_date), 'Инкотермс': incoterms,
             'Название судна': vessel_name, 'MMSI/IMO': vessel_mmsi,
             'Порт загрузки': port_start, 'Порт разгрузки': port_end, 
-            'Цена закупки ($)': float(price_buy), 'Цена продажи ($)': float(price_sell), 
-            'Фрахт ($)': float(freight), 'Пошлины и Страховка ($)': float(duties),
+            'Цена закупки (вход)': float(price_buy), 'Валюта закупки': buy_curr, 
+            'Цена продажи (USD)': float(price_sell), 'Фрахт ($)': float(freight), 'Пошлины и Страховка ($)': float(duties),
             'Прочие расходы ($)': float(extra_costs), 'Норма простоя (дн)': int(allowed_days),
-            'Ставка демереджа ($/сут)': float(demurrage_rate), 
-            'Крайняя дата прибытия': str(deadline_date),
+            'Ставка демереджа ($/сут)': float(demurrage_rate), 'Крайняя дата прибытия': str(deadline_date),
             'Демередж ($)': 0.0, 'Чистая прибыль ($)': float(net_profit)
         }
         
         st.session_state.df_data = pd.concat([st.session_state.df_data, pd.DataFrame([new_row])], ignore_index=True)
         
-        tg_text = f"📝 *Новая сделка сохранена ({incoterms})!*\n\n*ID:* {deal_id}\n*Маршрут:* {port_start} ➡️ {port_end}\n*Судно:* {vessel_name}\n*Ожидаемая прибыль:* ${net_profit:,.2f}"
-        success, info = send_telegram_message(tg_token, tg_chat, tg_text)
-        if success:
-            st.success("🤖 Отчет доставлен в Telegram!")
+        tg_text = f"📝 *Новая сделка сохранена!*\n\n*ID:* {deal_id}\n*Закупка:* {price_buy:,} {buy_curr} (${round(price_buy_usd, 1):,} USD)\n*Продажа:* ${price_sell:,} USD\n*Чистая прибыль:* ${net_profit:,.2f} USD"
+        send_telegram_message(tg_token, tg_chat, tg_text)
         st.success(f"✅ Сделка {deal_id} внесена в реестр!")
         st.rerun()
 
@@ -178,28 +211,3 @@ with tab3:
     st.header("📊 Умный мониторинг и радар рисков ETA")
     df = st.session_state.df_data
     
-    selected_deal = st.selectbox("Выберите активную сделку:", df['ID Сделки'].unique())
-    vessel_info = df[df['ID Сделки'] == selected_deal].iloc[0] # Исправлено чтение
-    
-    st.write(f"🚢 **Судно:** {vessel_info['Название судна']} | **Базис:** {vessel_info['Инкотермс']}")
-    
-    with st.spinner("Сбор телеметрии судна с радаров AIS..."):
-        v_lat, v_lon, v_speed, status_text = get_live_vessel_data(vessel_info['MMSI/IMO'])
-    st.info(f"📡 {status_text}")
-    
-    target_port_name = vessel_info['Порт разгрузки']
-    port_coords = PORTS[target_port_name]
-    distance_to_port = haversine(v_lat, v_lon, port_coords['lat'], port_coords['lon'])
-    st.write(f"📏 **Оставшееся расстояние до порта назначения:** {round(distance_to_port, 1)} км")
-    
-    # --- ИНТЕЛЛЕКТУАЛЬНЫЙ РАСЧЕТ ETA ЧЕРЕЗ СКОРОСТЬ СУДНА ---
-    if v_speed > 0.5:
-        # Переводим узлы в км/ч (1 узел = 1.852 км/ч)
-        speed_kmh = v_speed * 1.852
-        hours_left = distance_to_port / speed_kmh
-        days_left = hours_left / 24
-        
-        eta_datetime = datetime.now() + timedelta(hours=hours_left)
-        st.success(f"⏱ **Прогноз прибытия (ETA):** {eta_datetime.strftime('%d.%m.%Y %H:%M')} (осталось плыть: {round(days_left, 1)} дн.)")
-        
-        # Проверка рисков нарушения контракта (Демередж в пути)
