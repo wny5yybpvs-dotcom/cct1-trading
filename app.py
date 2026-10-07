@@ -57,9 +57,9 @@ def send_telegram_message(token, chat_id, text):
     except:
         return False
 
-# --- БАЗА МИРОВЫХ ПОРТОВ ---
+# --- БАЗА МИРОВЫХ ПОРТОВ (ОШИБКА "WON" ИСПРАВЛЕНА НА "LON") ---
 PORTS = {
-    "Новороссийск (Россия)": {"lat": 44.72, "won": 37.78},
+    "Новороссийск (Россия)": {"lat": 44.72, "lon": 37.78},
     "Санкт-Петербург (Россия)": {"lat": 59.93, "lon": 30.25},
     "Владивосток (Россия)": {"lat": 43.11, "lon": 131.88},
     "Мурманск (Россия)": {"lat": 68.97, "lon": 33.06},
@@ -205,8 +205,9 @@ with tab2:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True
     )
 
-# --- ВКЛАДКА 3 (БРОНЕБОЙНАЯ ЗАЩИЩЕННАЯ ВЕРСИЯ С ИНДЕКСОМ) ---
+# --- ВКЛАДКА 3 ---
 with tab3:
     st.header("📊 Умный Мониторинг & Логистический Радар")
     df_analysis = st.session_state.df_data
     
+    if df_analysis.empty:
