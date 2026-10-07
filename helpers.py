@@ -47,10 +47,9 @@ def render_input_tab(CURRENCY_RATES, tg_token, tg_chat):
     extra_costs = st.number_input("Прочие расходы, анализы ГХС ($):", min_value=0.0, value=2000.0)
     discharge_rate = st.number_input("Контрактная норма выгрузки (Тонн / сутки):", min_value=1.0, value=1500.0)
     demurrage_rate = st.number_input("Ставка демереджа ($ / сутки):", min_value=0.0, value=5000.0)
-    arrival_date = st.date_input("Дата фактического захода в港:", value=default_arrival)
+    arrival_date = st.date_input("Дата фактического захода в порт:", value=default_arrival)
 
     if st.button("💾 СОХРАНИТЬ СДЕЛКУ ТРЕЙДЕРА В БАЗУ", type="primary", use_container_width=True):
-        # Жесткое и явное объявление всех переменных для защиты от NameError
         m_loss = float(max(0.0, (moisture - 14.0) / 100.0) * cargo_volume)
         a_loss = float(max(0.0, (admixture - 2.0) / 100.0) * cargo_volume)
         total_refaction = float(m_loss + a_loss)
@@ -162,7 +161,7 @@ def render_radar_tab(tg_token, tg_chat):
     v_rows = st.session_state.df_data[st.session_state.df_data['ID Сделки'] == selected_deal].to_dict('records')
     
     if len(v_rows) > 0:
-        v_info = v_rows
+        v_info = v_rows[0]
         
         try:
             st.markdown(f"### 🚢 Оперативный трекинг: `{v_info.get('Название судна', 'Alpha')}`")
@@ -175,3 +174,5 @@ def render_radar_tab(tg_token, tg_chat):
             allowed_days = round(cargo / max(1.0, rate_per_day), 1)
             
             try:
+                arr_dt = datetime.datetime.strptime(str(v_info.get('Дата захода в порт', current_today)), "%Y-%m-%d").date()
+            except:
