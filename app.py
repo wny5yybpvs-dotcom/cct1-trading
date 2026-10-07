@@ -85,7 +85,8 @@ with tab1:
             days_overdue = st.number_input("Фактический простой сверх нормы (дней):", min_value=0, value=0)
 
         # Кнопка отправки формы
-        submitted = st.form_submit_with_情感 = st.form_submit_button("💾 Сохранить сделку в базу")
+                submitted = st.form_submit_button("💾 Сохранить сделку в базу")
+
         
         if submitted:
             # Расчеты
