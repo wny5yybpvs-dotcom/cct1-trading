@@ -27,14 +27,13 @@ def send_telegram_message(token, chat_id, text):
     if not token or not chat_id or token == "ВАШ_ТОКЕН" or chat_id == "ВАШ_ID" or token.strip() == "" or chat_id.strip() == "":
         return False, "⚠️ Поля токена или Chat ID не заполнены в боковом меню!"
     try:
-        url = f"https://api.telegram.org/bot{token.strip()}/sendMessage"
+        url = f"https://telegram.org{token.strip()}/sendMessage"
         payload = {"chat_id": chat_id.strip(), "text": text, "parse_mode": "Markdown"}
         response = requests.post(url, json=payload, timeout=5)
         
         if response.status_code == 200:
             return True, "Успешно!"
         else:
-            # Возвращаем описание ошибки от самого Telegram сервера
             error_desc = response.json().get("description", "Неизвестная ошибка")
             return False, f"Ошибка сервера Telegram: {error_desc} (Код {response.status_code})"
     except Exception as e:
@@ -100,12 +99,25 @@ def get_live_vessel_data(mmsi_or_imo):
         return 44.722, 37.782, "⚠️ Стоит в порту разгрузки (Новороссийск) | Скорость: 0 узлов"
     return 29.93, 32.55, "Режим ожидания. Показываем плановую точку."
 
+# --- ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ В ПАМЯТИ ---
 if "df_data" not in st.session_state:
     st.session_state.df_data = pd.DataFrame([{
-        'ID Сделки': 'Тест-Новороссийск', 'Дата': str(datetime.now().date()), 'Название сувна': 'Vessel Alpha', 'MMSI/IMO': '211281610',
-        'Порт загрузки': 'Стамбул (Турция)', 'Порт разгрузки': 'Новороссийск (Россия)', 'Цена закупки ($)': 100000.0, 'Цена продажи ($)': 170000.0,
-        'Фрахт ($)': 15000.0, 'Пошлины ($)': 5000.0, 'Прочие расходы ($)': 2000.0, 'Норма простоя (дн)': 3, 'Ставка демереджа ($/сут)': 5000.0,
-        'Дата захода в порт': str(date(2026, 10, 1)), 'Демередж ($)': 15000.0, 'Чистая прибыль ($)': 33000.0
+        'ID Сделки': 'Тест-Новороссийск', 
+        'Дата': str(datetime.now().date()), 
+        'Название судна': 'Vessel Alpha', # Опечатка ИСПРАВЛЕНА
+        'MMSI/IMO': '211281610',
+        'Порт загрузки': 'Стамбул (Турция)', 
+        'Порт разгрузки': 'Новороссийск (Россия)', 
+        'Цена закупки ($)': 100000.0, 
+        'Цена продажи ($)': 170000.0,
+        'Фрахт ($)': 15000.0, 
+        'Пошлины и Страховка ($)': 5000.0, 
+        'Прочие расходы ($)': 2000.0, 
+        'Норма простоя (дн)': 3, 
+        'Ставка демереджа ($/сут)': 5000.0,
+        'Дата захода в порт': str(date(2026, 10, 1)), 
+        'Демередж ($)': 15000.0, 
+        'Чистая прибыль ($)': 33000.0
     }])
 
 # --- ИНТЕРФЕЙС ---
@@ -165,16 +177,15 @@ with tab1:
         
         st.session_state.df_data = pd.concat([st.session_state.df_data, pd.DataFrame([new_row])], ignore_index=True)
         
-        # ОТПРАВКА С ТЕСТОМ ОШИБОК
         tg_text = f"📝 *Новая сделка сохранена!*\n\n*ID:* {deal_id}\n*Маршрут:* {port_start} ➡️ {port_end}\n*Судно:* {vessel_name}\n*Чистая прибыль:* ${net_profit:,.2f}"
         
         success, info = send_telegram_message(tg_token, tg_chat, tg_text)
         if success:
             st.success("🤖 Отчет успешно доставлен в Telegram!")
         else:
-            st.error(f"❌ Ошибка отправки: {info}") # Выведет точную проблему прямо на экран
+            st.error(f"❌ Ошибка отправки: {info}")
             
-        st.success(f"✅ Данные сделки {deal_id} успешно внесены в локальную базу!")
+        st.success(f"✅ Данные сделки {deal_id} успешно внесены!")
         st.rerun()
 
 # --- ВКЛАДКА 2 ---
@@ -193,6 +204,3 @@ with tab2:
     delete_id = st.selectbox("ID для удаления:", st.session_state.df_data['ID Сделки'].unique())
     if st.button("❌ Удалить сделку из базы", use_container_width=True):
         st.session_state.df_data = st.session_state.df_data[st.session_state.df_data['ID Сделки'] != delete_id]
-        st.warning(f"Сделка {delete_id} удалена.")
-        st.rerun()
-
