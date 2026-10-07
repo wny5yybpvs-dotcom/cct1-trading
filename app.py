@@ -39,9 +39,8 @@ def send_telegram_message(token, chat_id, text):
     except Exception as e:
         return False, f"Ошибка сети при отправке: {str(e)}"
 
-# --- РАСШИРЕННАЯ БАЗА МИРОВЫХ ПОРТОВ (БОЛЕЕ 50 ПОРТОВ) ---
+# --- БАЗА МИРОВЫХ ПОРТОВ ---
 PORTS = {
-    # --- РОССИЯ И СНГ ---
     "Новороссийск (Россия)": {"lat": 44.72, "lon": 37.78},
     "Санкт-Петербург (Россия)": {"lat": 59.93, "lon": 30.25},
     "Владивосток (Россия)": {"lat": 43.11, "lon": 131.88},
@@ -50,52 +49,15 @@ PORTS = {
     "Кавказ (Россия)": {"lat": 45.34, "lon": 36.67},
     "Усть-Луга (Россия)": {"lat": 59.68, "lon": 28.43},
     "Находка (Россия)": {"lat": 42.81, "lon": 132.88},
-    "Калининград (Россия)": {"lat": 54.71, "lon": 20.45},
-    "Архангельск (Россия)": {"lat": 64.54, "lon": 40.54},
-    "Астрахань (Россия)": {"lat": 46.34, "lon": 48.01},
-    "Туапсе (Россия)": {"lat": 44.09, "lon": 39.07},
-    "Поти (Грузия)": {"lat": 42.14, "lon": 41.64},
-    "Батуми (Грузия)": {"lat": 41.64, "lon": 41.64},
-    "Актау (Казахстан)": {"lat": 44.53, "lon": 51.17},
-    "Баку (Азербайджан)": {"lat": 40.37, "lon": 49.89},
-    # --- ТУРЦИЯ И СРЕДИЗЕМНОМОРЬЕ ---
     "Стамбул (Турция)": {"lat": 41.01, "lon": 28.97},
     "Джейхан (Турция)": {"lat": 36.88, "lon": 35.93},
-    "Искендерун (Турция)": {"lat": 36.58, "lon": 36.17},
-    "Мерсин (Турция)": {"lat": 36.80, "lon": 34.63},
-    "Измир (Турция)": {"lat": 38.42, "lon": 27.14},
-    "Пирей (Греция)": {"lat": 37.94, "lon": 23.64},
-    "Александрия (Египет)": {"lat": 31.20, "lon": 29.91},
-    "Порт-Саид (Египет)": {"lat": 31.26, "lon": 32.30},
-    "Хайфа (Израиль)": {"lat": 32.81, "lon": 34.99},
-    # --- БЛИЖНИЙ ВОСТОК И ИРАН ---
-    "Джидда (Саудовская Аравия)": {"lat": 21.54, "lon": 39.17},
-    "Джебель-Али / Дубай (ОАЭ)": {"lat": 25.01, "lon": 55.06},
-    "Фуджайра (ОАЭ)": {"lat": 25.12, "lon": 56.36},
-    "Бендер-Аббас (Иран)": {"lat": 27.14, "lon": 56.22},
-    "Басра (Ирак)": {"lat": 30.50, "lon": 47.81},
-    "Доха (Катар)": {"lat": 25.28, "lon": 51.53},
-    "Мина-Сальман (Бахрейн)": {"lat": 26.20, "lon": 50.60},
-    # --- АЗИЯ ---
+    "Поти (Грузия)": {"lat": 42.14, "lon": 41.64},
+    "Актау (Казахстан)": {"lat": 44.53, "lon": 51.17},
     "Шанхай (Китай)": {"lat": 31.23, "lon": 121.47},
-    "Нинбо-Чжоушань (Китай)": {"lat": 29.86, "lon": 121.54},
-    "Циндао (Китай)": {"lat": 36.07, "lon": 120.38},
-    "Гуанчжоу (Китай)": {"lat": 23.12, "lon": 113.26},
-    "Шэньчжэнь (Китай)": {"lat": 22.54, "lon": 114.05},
-    "Тяньцзинь (Китай)": {"lat": 38.96, "lon": 117.78},
     "Сингапур": {"lat": 1.26, "lon": 103.82},
-    "Пусан (Южная Корея)": {"lat": 35.17, "lon": 129.07},
-    "Мумбаи / Джавахарлал Неру (Индия)": {"lat": 18.95, "lon": 72.95},
-    "Мундра (Индия)": {"lat": 22.74, "lon": 69.70},
-    "Коломбо (Шри-Ланка)": {"lat": 6.94, "lon": 79.84},
-    # --- ЕВРОПА И ДРУГИЕ ---
     "Роттердам (Нидерланды)": {"lat": 51.92, "lon": 4.47},
-    "Антверпен (Бельгия)": {"lat": 51.22, "lon": 4.40},
-    "Гамбург (Германия)": {"lat": 53.55, "lon": 9.99},
-    "Валенсия (Испания)": {"lat": 39.45, "lon": -0.32},
     "Хьюстон (США)": {"lat": 29.76, "lon": -95.36},
-    "Сантос (Бразилия)": {"lat": -23.96, "lon": -46.33},
-    "Дурбан (ЮАР)": {"lat": -29.85, "lon": 31.02}
+    "Джидда (Саудовская Аравия)": {"lat": 21.54, "lon": 39.17}
 }
 
 def haversine(lat1, lon1, lat2, lon2):
@@ -120,7 +82,8 @@ def get_live_vessel_data(mmsi_or_imo):
         return 44.722, 37.782, "⚠️ Стоит в порту разгрузки (Новороссийск) | Скорость: 0 узлов"
     return 29.93, 32.55, "Режим ожидания. Показываем плановую точку."
 
-if "df_data" not in st.session_state:
+# --- НАДЕЖНАЯ ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ ---
+if "df_data" not in st.session_state or not isinstance(st.session_state.df_data, pd.DataFrame) or st.session_state.df_data.empty:
     st.session_state.df_data = pd.DataFrame([{
         'ID Сделки': 'Тест-Новороссийск', 
         'Дата': str(datetime.now().date()), 
@@ -135,7 +98,7 @@ if "df_data" not in st.session_state:
         'Прочие расходы ($)': 2000.0, 
         'Норма простоя (дн)': 3, 
         'Ставка демереджа ($/сут)': 5000.0,
-        'Дата захода в港': str(date(2026, 10, 1)), 
+        'Дата захода в порт': str(date(2026, 10, 1)), 
         'Демередж ($)': 15000.0, 
         'Чистая прибыль ($)': 33000.0
     }])
@@ -167,8 +130,8 @@ with tab1:
     extra_costs = st.number_input("Прочие накладные расходы ($):", min_value=0.0, value=1000.0)
         
     st.subheader("🚢 Направление и Судно")
-    port_start = st.selectbox("Выберите Порт ЗАГРУЗКИ:", sorted(list(PORTS.keys())), index=40) # Дефолт Стамбул
-    port_end = st.selectbox("Выберите Порт РАЗГРУЗКИ:", sorted(list(PORTS.keys())), index=23) # Дефолт Новороссийск
+    port_start = st.selectbox("Выберите Порт ЗАГРУЗКИ:", sorted(list(PORTS.keys())), index=8)
+    port_end = st.selectbox("Выберите Порт РАЗГРУЗКИ:", sorted(list(PORTS.keys())), index=0)
     
     vessel_name = st.text_input("Название судна:", value="Vessel Alpha")
     vessel_mmsi = st.text_input("MMSI или IMO судна:", value="211281610")
@@ -205,3 +168,44 @@ with tab1:
         else:
             st.error(f"❌ Ошибка отправки: {info}")
             
+        st.success(f"✅ Данные сделки {deal_id} успешно внесены!")
+        st.rerun()
+
+# --- ВКЛАДКА 2 ---
+with tab2:
+    st.header("📋 Реестр торговых сделок")
+    st.dataframe(st.session_state.df_data, use_container_width=True)
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+        st.session_state.df_data.to_excel(writer, index=False, sheet_name='Сделки CCT1')
+    st.download_button(
+        label="📥 СКАЧАТЬ ВСЮ БАЗУ В EXCEL (.xlsx)", data=buffer.getvalue(),
+        file_name=f"CCT1_Report_{datetime.now().strftime('%Y%m%d')}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True
+    )
+    st.write("---")
+    delete_id = st.selectbox("ID для удаления:", st.session_state.df_data['ID Сделки'].unique())
+    if st.button("❌ Удалить сделку из базы", use_container_width=True):
+        st.session_state.df_data = st.session_state.df_data[st.session_state.df_data['ID Сделки'] != delete_id]
+        st.warning(f"Сделка {delete_id} удалена.")
+        st.rerun()
+
+# --- ВКЛАДКА 3 ---
+with tab3:
+    st.header("📊 Мониторинг рейсов и Расчет рисков")
+    df = st.session_state.df_data
+    
+    selected_deal = st.selectbox("Выберите активную сделку:", df['ID Сделки'].unique())
+    
+    # ИСПРАВЛЕНО: Безопасное извлечение первой строки в виде серии данных
+    vessel_info = df[df['ID Сделки'] == selected_deal].iloc[0]
+    
+    st.write(f"🚢 **Судно:** {vessel_info['Название судна']} | **MMSI:** {vessel_info['MMSI/IMO']}")
+    
+    with st.spinner("Связь со спутниками AIS..."):
+        v_lat, v_lon, status_text = get_live_vessel_data(vessel_info['MMSI/IMO'])
+    st.warning(f"📡 {status_text}")
+    
+    target_port_name = vessel_info['Порт разгрузки']
+    port_coords = PORTS[target_port_name]
+    distance_to_port = haversine(v_lat, v_lon, port_coords['lat'], port_coords['lon'])
