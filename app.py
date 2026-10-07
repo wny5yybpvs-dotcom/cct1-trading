@@ -26,16 +26,16 @@ def get_exchange_rates():
         r = requests.get("https://er-api.com", timeout=5)
         if r.status_code == 200:
             rates = r.json().get("rates", {})
-            return {"USD": 1.0, "RUB": rates.get("RUB", 93.5), "CNY": rates.get("CNY", 7.2)}
+            return {"USD": 1.0, "RUB": rates.get("RUB", 95.0), "CNY": rates.get("CNY", 7.3)}
     except:
         pass
-    return {"USD": 1.0, "RUB": 93.5, "CNY": 7.2}
+    return {"USD": 1.0, "RUB": 95.0, "CNY": 7.3}
 
 CURRENCY_RATES = get_exchange_rates()
 
 if "df_data" not in st.session_state or not isinstance(st.session_state.df_data, pd.DataFrame) or st.session_state.df_data.empty:
     st.session_state.df_data = pd.DataFrame([{
-        'ID Сделки': 'DEAL-TEST-DEMURRAGE', 'Дата': str(datetime.now().date()), 'Статус рейса': 'В пути', 'Инкотермс': 'CIF',
+        'ID Сделки': 'DEAL-TEST-DEMURRAGE', 'Дата': str(datetime.now().date()), 'Статус рейса': 'В порту', 'Инкотермс': 'CIF',
         'Объем (Тонн)': 5000.0, 'Название судна': 'Vessel Alpha', 'MMSI/IMO': '211281610',
         'Порт загрузки': 'Стамбул', 'Порт разгрузки': 'Новороссийск', 
         'Цена закупки (вход)': 700000.0, 'Валюта закупки': 'CNY', 'Цена продажи (USD)': 180000.0, 
@@ -43,7 +43,7 @@ if "df_data" not in st.session_state or not isinstance(st.session_state.df_data,
         'Норма простоя (дн)': 3, 'Ставка демереджа ($/сут)': 5000.0,
         'Крайняя дата прибытия': str(datetime.now().date() + timedelta(days=2)),
         'Дата захода в порт': str(datetime.now().date() - timedelta(days=6)),
-        'Демередж ($)': 15000.0, 'Чистая прибыль ($)': 38000.0, 'Прибыль/Тонна ($)': 7.6
+        'Демередж ($)': 0.0, 'Чистая прибыль ($)': 0.0, 'Прибыль/Тонна ($)': 0.0
     }])
 
 st.set_page_config(layout="wide", page_title="CCT1 Enterprise")
