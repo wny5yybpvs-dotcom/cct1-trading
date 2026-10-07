@@ -33,7 +33,8 @@ def get_exchange_rates():
 
 CURRENCY_RATES = get_exchange_rates()
 
-if "df_data" not in st.session_state or not isinstance(st.session_state.df_data, pd.DataFrame) or st.session_state.df_data.empty:
+# СБРОС СЕССИИ ПРИ СТРУКТУРНЫХ ИЗМЕНЕНИЯХ (Защита от KeyError)
+if "df_data" not in st.session_state or "Валюта закупки" not in st.session_state.df_data.columns:
     st.session_state.df_data = pd.DataFrame([{
         'ID Сделки': 'DEAL-TEST-DEMURRAGE', 'Дата': str(datetime.now().date()), 'Статус рейса': 'В порту', 'Инкотермс': 'CIF',
         'Объем (Тонн)': 5000.0, 'Название судна': 'Vessel Alpha', 'MMSI/IMO': '211281610',
@@ -41,7 +42,7 @@ if "df_data" not in st.session_state or not isinstance(st.session_state.df_data,
         'Цена закупки (вход)': 700000.0, 'Валюта закупки': 'CNY', 'Цена продажи (USD)': 180000.0, 
         'Фрахт ($)': 15000.0, 'Пошлины и Страховка ($)': 5000.0, 'Прочие расходы ($)': 2000.0, 
         'Норма простоя (дн)': 3, 'Ставка демереджа ($/сут)': 5000.0,
-        'Крайняя дата прибытия': str(datetime.now().date() + timedelta(days=2)),
+        'Крайняя дата прибытия': str(datetime.now().date() + timedelta(days=2)), 
         'Дата захода в порт': str(datetime.now().date() - timedelta(days=6)),
         'Демередж ($)': 0.0, 'Чистая прибыль ($)': 0.0, 'Прибыль/Тонна ($)': 0.0
     }])
