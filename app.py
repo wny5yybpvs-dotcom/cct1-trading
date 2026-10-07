@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import folium
-from streamlit_folium import st_folium
 
 # --- НАСТРОЙКА БЕЗОПАСНОСТИ ---
 COMPANY_PASSWORD = "cct1_trade"
@@ -23,7 +21,7 @@ if not st.session_state.auth:
 
 # --- ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ В ПАМЯТИ ---
 if "df_data" not in st.session_state:
-    # Создаем стартовую тестовую строчку, чтобы база не была пустой и карта сразу работала!
+    # Создаем стартовую тестовую строчку, чтобы база не была пустой
     st.session_state.df_data = pd.DataFrame([{
         'ID Сделки': 'Тест-01',
         'Дата': str(datetime.now().date()),
@@ -47,6 +45,7 @@ if st.sidebar.button("Выйти из системы"):
     st.session_state.auth = False
     st.rerun()
 
+# Создаем три вкладки, адаптированные под мобильный телефон
 tab1, tab2, tab3 = st.tabs(["📥 Ввод данных", "📋 База сделок", "📊 Аналитика и Карта"])
 
 # --- ВКЛАДКА 1: ВВОД ДАННЫХ ---
@@ -67,6 +66,7 @@ with tab1:
 
     st.write("---")
     
+    # Кнопка сохранения во весь экран телефона
     if st.button("💾 СОХРАНИТЬ СДЕЛКУ В БАЗУ", type="primary", use_container_width=True):
         demurrage_total = days_overdue * demurrage_rate
         net_profit = price_sell - price_buy - freight - demurrage_total
@@ -89,7 +89,6 @@ with tab1:
         # Добавляем данные в сессию телефона
         st.session_state.df_data = pd.concat([st.session_state.df_data, pd.DataFrame([new_row])], ignore_index=True)
         st.success(f"✅ Сделка {deal_id} успешно добавлена в таблицу!")
-        st.status("Обновление интерфейса...")
         st.rerun()
 
 # --- ВКЛАДКА 2: БАЗА СДЕЛОК ---
@@ -109,7 +108,7 @@ with tab3:
     st.header("📈 Финансовые итоги")
     df = st.session_state.df_data
     
-    # Сводные показатели
+    # Сводные показатели бизнеса
     st.metric("Всего сделок в списке", len(df))
     st.metric("Общий демередж", f"${df['Демередж ($)'].astype(float).sum():,}")
     st.metric("ОБЩАЯ ЧИСТАЯ ПРИБЫЛЬ", f"${df['Чистая прибыль ($)'].astype(float).sum():,}")
@@ -126,16 +125,14 @@ with tab3:
     
     st.write(f"🚢 **Судно:** {vessel_info['Название судна']} | **MMSI:** {vessel_info['MMSI/IMO']}")
     
-    # Координаты Суэцкого канала (базовые)
+    # Координаты Суэцкого канала по умолчанию (широта и долгота)
     lat, lon = 29.93, 32.55
     
-    # Создаем карту
-    m = folium.Map(location=[lat, lon], zoom_start=5)
-    folium.Marker(
-        [lat, lon], 
-        popup=f"Судно: {vessel_info['Название судна']}",
-        tooltip=str(vessel_info['Название sunda'])
-    ).add_to(m)
+    # Формируем таблицу координат для стандартной карты
+    map_df = pd.DataFrame([{
+        'latitude': float(lat),
+        'longitude': float(lon)
+    }])
     
-    # Выводим карту на экран смартфона
-    st_folium(m, width=340, height=300, returned_objects=[])
+    # Стабильная родная карта Streamlit
+    st.map(map_df, zoom=5)
