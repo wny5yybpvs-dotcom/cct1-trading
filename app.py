@@ -32,7 +32,7 @@ def load_data():
         except:
             pass
     return pd.DataFrame(columns=[
-        'ID Сделки', 'Дата', 'Название судна', 'MMSI/IMO', 
+        'ID Сделки', 'Дата', 'Название sudna', 'MMSI/IMO', 
         'Цена закупки ($)', 'Цена продажи ($)', 'Фрахт ($)', 
         'Норма простоя (дн)', 'Ставка демереджа ($/сут)', 
         'Дней простоя сверх нормы', 'Демередж ($)', 'Чистая прибыль ($)'
@@ -52,9 +52,10 @@ if st.sidebar.button("Выйти из системы"):
     st.session_state.auth = False
     st.rerun()
 
+# ТРИ ВКЛАДКИ ДЛЯ МОБИЛЬНОЙ ВЕРСИИ
 tab1, tab2, tab3 = st.tabs(["📥 Ввод данных", "📋 База сделок", "📊 Аналитика"])
 
-# --- ВКЛАДКА 1: БЕЗ КОЛОНОК (ВСЁ В ОДНУ ЛЕНТУ) ---
+# --- ВКЛАДКА 1: ВВОД ДАННЫХ ---
 with tab1:
     st.subheader("📦 Параметры сделки")
     deal_id = st.text_input("Номер или ID сделки:", value=f"DEAL-{datetime.now().strftime('%Y%m%d-%H%M')}")
@@ -72,7 +73,6 @@ with tab1:
 
     st.write("---")
     
-    # Кнопка в самом низу страницы
     if st.button("💾 СОХРАНИТЬ СДЕЛКУ В БАЗУ", type="primary", use_container_width=True):
         demurrage_total = days_overdue * demurrage_rate
         net_profit = price_sell - price_buy - freight - demurrage_total
@@ -80,7 +80,7 @@ with tab1:
         new_row = {
             'ID Сделки': deal_id,
             'Дата': str(deal_date),
-            'Название судна': vessel_name,
+            'Название sudna': vessel_name,
             'MMSI/IMO': vessel_mmsi,
             'Цена закупки ($)': price_buy,
             'Цена продажи ($)': price_sell,
@@ -133,9 +133,9 @@ with tab3:
         selected_deal = st.selectbox("Сделка для проверки карты:", df['ID Сделки'].unique())
         vessel_info = df[df['ID Сделки'] == selected_deal].iloc[0]
         
-        st.write(f"**Судно:** {vessel_info['Название судна']} | **MMSI:** {vessel_info['MMSI/IMO']}")
+        st.write(f"**Судно:** {vessel_info['Название sudna']} | **MMSI:** {vessel_info['MMSI/IMO']}")
         
-        lat, lon = 29.93, 32.55 # Точка в Суэцком канале
+        lat, lon = 29.93, 32.55
         m = folium.Map(location=[lat, lon], zoom_start=6)
-        folium.Marker([lat, lon], popup=str(vessel_info['Название судна'])).add_to(m)
+        folium.Marker([lat, lon], popup=str(vessel_info['Название sudna'])).add_to(m)
         st_folium(m, width=320, height=300, returned_objects=[])
