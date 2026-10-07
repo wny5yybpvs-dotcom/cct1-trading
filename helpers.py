@@ -1,13 +1,13 @@
 import streamlit as st
 import pandas as pd
 import io
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # ==========================================
 # 1. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 # ==========================================
 def get_live_vessel_data(mmsi):
-    """ Возвращает 4 параметра, чтобы не ломать распаковку переменных """
+    """ Возвращает строго 4 параметра для распаковки """
     return 39.55, 29.30, 10.0, "🛰️ Спутниковый статус AIS: Активен | Судно находится на подходе к терминалу"
 
 # ==========================================
@@ -58,7 +58,6 @@ def render_input_tab(CURRENCY_RATES, tg_token, tg_chat):
 def render_excel_tab():
     st.subheader("📋 Реестр зерновых сделок")
     
-    # ГЛОБАЛЬНЫЙ ПЕРЕРАСЧЕТ ДЕМЕРЕДЖА ДЛЯ ВСЕХ СДЕЛОК
     current_today = datetime.now().date()
     updated_rows = []
     for row in st.session_state.df_data.to_dict('records'):
@@ -67,7 +66,6 @@ def render_excel_tab():
         overdue = max(0, days_in_port - int(row['Норма простоя (дн)']))
         row['Демередж (\$)'] = overdue * float(row['Ставка демереджа (\$/сут)'])
         
-        # Экономический баланс
         buy_curr = row['Валюта закупки']
         rate = 7.3 if buy_curr == 'CNY' else (95.0 if buy_curr == 'RUB' else 1.0)
         buy_usd = float(row['Цена закупки (вход)']) / rate
@@ -110,7 +108,7 @@ def render_radar_tab(tg_token, tg_chat):
     v_rows = st.session_state.df_data[st.session_state.df_data['ID Сделки'] == selected_deal].to_dict('records')
     
     if len(v_rows) > 0:
-        v_info = v_rows[0]
+        v_info = v_rows[0]  # Исправлено: берем первый словарь из списка записей
         st.markdown(f"### 🚢 Мониторинг рейса: `{v_info.get('Название судна')}`")
         
         lat, lon, speed, status_text = get_live_vessel_data(v_info.get('MMSI/IMO'))
@@ -127,11 +125,25 @@ def render_radar_tab(tg_token, tg_chat):
         st.info(f"📅 Судно находится в порту назначения уже **{total_days_spent} дней** (Разрешенная норма простоя: {v_info.get('Норма простоя (дн)')} дн.)")
         
         # ==========================================
-        # МОБИЛЬНЫЙ ТРЕКЕР МАРШРУТА
+        # СТАНДАРТНАЯ КАРТА STREAMLIT ДЛЯ МОБИЛЬНЫХ
         # ==========================================
-        st.markdown("#### 📍 Текущий статус логистической цепочки:")
+        st.markdown("#### 📍 Положение судна на карте:")
+        
+        # Хардкод-координаты для стабильности
+        p_start_lat, p_start_lon = 41.0151, 28.9795   # Стамбул
+        p_end_lat, p_end_lon = 44.7239, 37.7686       # Новороссийск
+        
+        map_points = [
+            {'latitude': p_start_lat, 'longitude': p_start_lon, 'Название': 'Порт загрузки'},
+            {'latitude': lat, 'longitude': lon, 'Название': 'Текущая позиция судна'},
+            {'latitude': p_end_lat, 'longitude': p_end_lon, 'Название': 'Порт разгрузки'}
+        ]
+        df_map = pd.DataFrame(map_points)
+        st.map(df_map, zoom=4, use_container_width=True)
+        
+        # Текстовый дубляж схемы для 100% контроля
+        st.markdown("#### 📋 Статус логистической цепочки:")
         p_start = v_info.get('Порт загрузки', 'Старт')
         p_end = v_info.get('Порт разгрузки', 'Финиш')
         
         st.warning(f"🏁 **[ТЕКУЩИЙ ЭТАП]** Судно прошло маршрут **{p_start} -> {p_end}** и сейчас оштрафовано за простой в порту разгрузки.")
-        st.markdown(f"**Координаты последней фиксации транспондера AIS:** Широта `{lat}`, Долгота `{lon}`")
