@@ -23,27 +23,24 @@ if not st.session_state.auth:
     st.stop()
 
 # --- ФУНКЦИЯ ПОЛУЧЕНИЯ АКТУАЛЬНЫХ КУРСОВ ВАЛЮТ ---
-@st.cache_data(ttl=3600)  # Курс обновляется раз в час, чтобы сайт работал быстро
+@st.cache_data(ttl=3600)
 def get_exchange_rates():
     try:
-        # Используем бесплатное и стабильное API курсов валют
         url = "https://er-api.com"
         response = requests.get(url, timeout=5)
         if response.status_code == 200:
             rates = response.json().get("rates", {})
             return {
                 "USD": 1.0,
-                "RUB": rates.get("RUB", 93.5),   # Если API сбоит, подставятся базовые курсы
+                "RUB": rates.get("RUB", 93.5),
                 "CNY": rates.get("CNY", 7.2)
             }
     except:
         pass
     return {"USD": 1.0, "RUB": 93.5, "CNY": 7.2}
 
-# Получаем живые курсы валют
 CURRENCY_RATES = get_exchange_rates()
 
-# --- ФУНКЦИЯ КОНВЕРТАЦИИ В USD ---
 def convert_to_usd(amount, from_currency):
     rate = CURRENCY_RATES.get(from_currency, 1.0)
     return float(amount / rate)
@@ -51,7 +48,7 @@ def convert_to_usd(amount, from_currency):
 # --- ФУНКЦИЯ ОТПРАВКИ В TELEGRAM ---
 def send_telegram_message(token, chat_id, text):
     if not token or not chat_id or token == "ВАШ_ТОКЕН" or chat_id == "ВАШ_ID" or token.strip() == "" or chat_id.strip() == "":
-        return False, "⚠️ Ключи Telegram не заполнены."
+        return False
     try:
         url = f"https://telegram.org{token.strip()}/sendMessage"
         payload = {"chat_id": chat_id.strip(), "text": text, "parse_mode": "Markdown"}
@@ -97,10 +94,10 @@ def get_live_vessel_data(mmsi_or_imo):
         return 34.05, 25.10, 11.5, "🚢 В пути (Средиземное море) | Скорость: 11.5 узлов"
     return 29.93, 32.55, 12.0, "Режим ожидания. Показываем плановые данные."
 
-# --- НАДЕЖНАЯ ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ В СЕССИИ ---
+# --- БЕЗОПАСНАЯ ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ ---
 if "df_data" not in st.session_state or not isinstance(st.session_state.df_data, pd.DataFrame) or st.session_state.df_data.empty:
     st.session_state.df_data = pd.DataFrame([{
-        'ID Сделки': 'DEAL-MULTI-CURR', 'Дата': str(datetime.now().date()), 'Инкотермс': 'CIF',
+        'ID Сделки': 'DEAL-TEST-ETA', 'Дата': str(datetime.now().date()), 'Инкотермс': 'CIF',
         'Название судна': 'Vessel Alpha', 'MMSI/IMO': '211281610',
         'Порт загрузки': 'Стамбул (Турция)', 'Порт разгрузки': 'Новороссийск (Россия)', 
         'Цена закупки (вход)': 700000.0, 'Валюта закупки': 'CNY',
@@ -115,7 +112,6 @@ if "df_data" not in st.session_state or not isinstance(st.session_state.df_data,
 st.set_page_config(layout="centered", page_title="CCT1 Trading & Logistics")
 st.title("🚢 Платформа CCT1 Мультивалютная")
 
-# Вывод текущих курсов в боковую панель для контроля
 st.sidebar.header("💱 Живой курс валют (к USD)")
 st.sidebar.write(f"💵 1 USD = **{round(CURRENCY_RATES['RUB'], 2)}** RUB")
 st.sidebar.write(f"🇨🇳 1 USD = **{round(CURRENCY_RATES['CNY'], 2)}** CNY")
@@ -137,16 +133,14 @@ with tab1:
     deal_date = st.date_input("Дата сделки:", value=datetime.now().date())
     incoterms = st.selectbox("Базис поставки (Инкотермс):", ["CIF", "CFR", "FOB"])
     
-    # --- БЛОК МУЛЬТИВАЛЮТНОЙ ЗАКУПКИ ---
     st.write("---")
     st.write("**💵 Закупка товара**")
     buy_curr = st.selectbox("Выберите валюту закупки товара:", ["USD", "CNY", "RUB"])
     price_buy = st.number_input(f"Сумма закупки в выбранной валюте ({buy_curr}):", min_value=0.0, value=100000.0)
     
-    # Конвертируем закупку в USD для внутренних расчетов
     price_buy_usd = convert_to_usd(price_buy, buy_curr)
     if buy_curr != "USD":
-        st.caption(f"ℹ️ В эквиваленте: **${round(price_buy_usd, 2):,} USD** по текущему курсу.")
+        st.caption(f"ℹ️ В эквиваленте: **${round(price_buy_usd, 2):,} USD** по курсу.")
         
     st.write("---")
     price_sell = st.number_input("Цена ПРОДАЖИ товара (всегда в $):", min_value=0.0, value=150000.0)
@@ -171,8 +165,6 @@ with tab1:
     
     if st.button("💾 СОХРАНИТЬ СДЕЛКУ И ОТПРАВИТЬ ОТЧЕТ", type="primary", use_container_width=True):
         actual_freight = 0.0 if incoterms == "FOB" else float(freight)
-        
-        # Финальный расчет прибыли с учетом конвертации закупки в USD
         net_profit = float(price_sell) - price_buy_usd - actual_freight - float(duties) - float(extra_costs)
         
         new_row = {
@@ -188,7 +180,7 @@ with tab1:
         
         st.session_state.df_data = pd.concat([st.session_state.df_data, pd.DataFrame([new_row])], ignore_index=True)
         
-        tg_text = f"📝 *Новая сделка сохранена!*\n\n*ID:* {deal_id}\n*Закупка:* {price_buy:,} {buy_curr} (${round(price_buy_usd, 1):,} USD)\n*Продажа:* ${price_sell:,} USD\n*Чистая прибыль:* ${net_profit:,.2f} USD"
+        tg_text = f"📝 *Новая сделка сохранена!*\n\n*ID:* {deal_id}\n*Закупка:* {price_buy:,} {buy_curr}\n*Продажа:* ${price_sell:,} USD\n*Чистая прибыль:* ${net_profit:,.2f} USD"
         send_telegram_message(tg_token, tg_chat, tg_text)
         st.success(f"✅ Сделка {deal_id} внесена в реестр!")
         st.rerun()
@@ -211,3 +203,15 @@ with tab3:
     st.header("📊 Умный мониторинг и радар рисков ETA")
     df = st.session_state.df_data
     
+    if df.empty:
+        st.info("Нет активных сделок.")
+    else:
+        selected_deal = st.selectbox("Выберите активную сделку:", df['ID Сделки'].unique())
+        
+        # БЕЗОПАСНОЕ ИСПРАВЛЕННОЕ ИЗВЛЕЧЕНИЕ СТРОКИ ТАБЛИЦЫ
+        matching_rows = df[df['ID Сделки'] == selected_deal]
+        if not matching_rows.empty:
+            vessel_info = matching_rows.iloc[0] # Исправлено!
+            
+            st.write(f"🚢 **Судно:** {vessel_info['Название судна']} | **Базис:** {vessel_info['Инкотермс']}")
+            
