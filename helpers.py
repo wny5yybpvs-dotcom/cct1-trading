@@ -9,11 +9,12 @@ def get_port_coordinates(port_name):
     if not port_name or port_name.strip() == "":
         return 44.72, 37.78, "Новороссийск"
     try:
+        # Исправлен базовый URL для OpenStreetMap Nominatim API
         url = f"https://openstreetmap.org{requests.utils.quote(port_name)}&format=json&limit=1"
         r = requests.get(url, headers={'User-Agent': 'CCT1_App_v5'}, timeout=5)
         if r.status_code == 200 and len(r.json()) > 0:
-            d = r.json()
-            return float(d.get('lat')), float(d.get('lon')), d.get('display_name', port_name).split(',')
+            d = r.json()[0]
+            return float(d.get('lat')), float(d.get('lon')), d.get('display_name', port_name).split(',')[0]
     except:
         pass
     return 44.72, 37.78, f"{port_name} (Дефолт)"
@@ -118,7 +119,7 @@ def render_excel_tab():
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
         display_df.to_excel(writer, index=False, sheet_name='Зерно_CCT1')
-    st.download_button(label="📥 СКАЧАТЬ РЕЕСТР ЗЕРНА В EXCEL (.xlsx)", data=buffer.getvalue(), file_name="CCT1_Grain_Report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+    st.download_button(label="📥 СКАЧАТЬ Реестр В EXCEL (.xlsx)", data=buffer.getvalue(), file_name="CCT1_Grain_Report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
 
 def render_radar_tab(tg_token, tg_chat):
     st.subheader("📊 Логистический Радар Зерновозов")
@@ -145,30 +146,28 @@ def render_radar_tab(tg_token, tg_chat):
         st.info(f"📡 {status_text}")
         
         with st.spinner("Поиск координат порта разгрузки..."):
-            p_lat, p_lon, p_name = get_port_coordinates(v_info['Порт разгрузки'])
-            
-        distance_to_port = haversine(v_lat, v_lon, p_lat, p_lon)
-        st.write(f"📍 **Порт разгрузки:** {p_name}")
-        st.write(f"📏 **Дистанция до элеватора:** {round(distance_to_port, 1)} км")
+            p_lat, p_lon, p_name = get_port_coordinates(v_info.get('Порт разгрузки', 'Новороссийск'))
         
-        if distance_to_port > 15.0:
-            st.success("🌊 Корабль находится на переходе в море.")
-            if v_speed > 0.5:
-                speed_kmh = v_speed * 1.852
-                hours_left = distance_to_port / speed_kmh
+        # Расчет дистанции и ETA
+        distance_km = haversine(v_lat, v_lon, p_lat, p_lon)
+        distance_nm = distance_km / 1.852 # в морские мили
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Осталось плыть (км)", f"{distance_km:,.1f} км")
+        with col2:
+            if v_speed > 0:
+                hours_left = distance_nm / v_speed
                 days_left = hours_left / 24
-                eta_datetime = datetime.now() + timedelta(hours=hours_left)
-                st.success(f"⏱ **Прогноз прибытия зерна (ETA):** {eta_datetime.strftime('%d.%m.%Y %H:%M')} (осталось: {round(days_left, 1)} дн.)")
-                
-                contract_deadline = datetime.strptime(str(v_info['Крайняя дата прибытия']), "%Y-%m-%d")
-                if eta_datetime > contract_deadline:
-                    days_late = (eta_datetime - contract_deadline).days + 1
-                    risk_cost = days_late * float(v_info['Ставка демереджа ($/сут)'])
-                    st.error(f"🚨 **РИСК СРЫВА СРОКОВ ПОСТАВКИ!** Опоздание: {days_late} дн. Прогноз демереджа: **-${risk_cost:,}**")
-        else:
-            st.error("🎯 Зерновоз зафиксирован внутри акватории порта назначения!")
-            entry_date = datetime.strptime(str(v_info.get('Дата захода в порт', datetime.now().date())), "%Y-%m-%d").date()
-            days_spent = (datetime.now().date() - entry_date).days
-            overdue = max(0, days_spent - int(v_info['Норма простоя (дн)']))
-            st.error(f"🚨 Счетчик простоя под выгрузкой: **${overdue * float(v_info['Ставка демереджа ($/сут)']):,}**")
+                st.metric("Примерно времени в пути (ETA)", f"{days_left:.1f} суток")
+            else:
+                st.metric("Примерно времени в пути (ETA)", "Судно стоит")
 
+        # Вывод интерактивной карты
+        st.write(f"📍 **Цель:** порт {v_info.get('Порт разгрузки')} (Координаты: {p_lat}, {p_lon})")
+        map_data = pd.DataFrame({
+            'lat': [v_lat, p_lat],
+            'lon': [v_lon, p_lon],
+            'name': [v_info.get('Название судна', 'Судно'), f"Порт: {p_name}"]
+        })
+        st.map(map_data, zoom=4)
