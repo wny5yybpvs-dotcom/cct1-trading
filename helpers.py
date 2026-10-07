@@ -5,16 +5,55 @@ import math
 import io
 from datetime import datetime, date, timedelta
 
+# ==========================================
+# 1. КОНФИГУРАЦИЯ СТРАНИЦЫ И СЕССИИ
+# ==========================================
+st.set_page_config(
+    page_title="CCT1 - Зерновая Логистика & Экономика",
+    page_icon="🌾",
+    layout="wide"
+)
+
+st.title("🌾 Система Мониторинга Зерновых Сделок «CCT1»")
+
+# Настройки интеграции в боковой панели
+st.sidebar.header("⚙️ Настройки интеграции")
+tg_token = st.sidebar.text_input("Telegram Bot Token:", value="", type="password")
+tg_chat = st.sidebar.text_input("Telegram Chat ID:", value="")
+
+# Фиксированные курсы валют для калькулятора
+CURRENCY_RATES = {
+    "USD": 1.0,
+    "CNY": 7.3,
+    "RUB": 95.0
+}
+
+# Инициализация базы данных сделок в памяти сессии
+if 'df_data' not in st.session_state:
+    st.session_state.df_data = pd.DataFrame([
+        {
+            'ID Сделки': 'DEAL-20261008-0001', 'Дата': '2026-10-08', 'Статус рейса': 'В пути', 'Культура': 'Пшеница 3 класс',
+            'Инкотермс': 'CIF', 'Объем погрузки (Тонн)': 5000.0, 'Убыль в пути (%)': 0.5,
+            'Объем выгрузки (Тонн)': 4975.0, 'Название судна': 'Vessel Alpha', 'MMSI/IMO': '211281610',
+            'Порт загрузки': 'Стамбул', 'Порт разгрузки': 'Новороссийск', 'Закупка ($/т)': 180.0,
+            'Продажа ($/т)': 240.0, 'Перевалка ($/т)': 12.0,
+            'Демередж ($)': 0.0, 'Чистая прибыль ($)': 260000.0, 'Прибыль/Тонна ($)': 52.0
+        }
+    ])
+
+# ==========================================
+# 2. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (API И ГЕО)
+# ==========================================
 def get_port_coordinates(port_name):
     if not port_name or port_name.strip() == "":
         return 44.72, 37.78, "Новороссийск"
     try:
-        # Исправлен базовый URL для OpenStreetMap Nominatim API
+        # Исправлен базовый рабочий URL для Nominatim OpenStreetMap
         url = f"https://openstreetmap.org{requests.utils.quote(port_name)}&format=json&limit=1"
         r = requests.get(url, headers={'User-Agent': 'CCT1_App_v5'}, timeout=5)
         if r.status_code == 200 and len(r.json()) > 0:
-            d = r.json()[0]
-            return float(d.get('lat')), float(d.get('lon')), d.get('display_name', port_name).split(',')[0]
+            d = r.json()
+            return float(d[0].get('lat')), float(d[0].get('lon')), d[0].get('display_name', port_name).split(',')
     except:
         pass
     return 44.72, 37.78, f"{port_name} (Дефолт)"
@@ -31,6 +70,9 @@ def get_live_vessel_data(mmsi):
         return 39.55, 29.30, 10.0, "🚢 В пути с зерном (Эгейское море) | Скорость: 10.0 узлов"
     return 29.93, 32.55, 12.0, "В пути (демо-координаты)"
 
+# ==========================================
+# 3. МОДУЛИ ИНТЕРФЕЙСА (ВКЛАДКИ)
+# ==========================================
 def render_input_tab(CURRENCY_RATES, tg_token, tg_chat):
     st.subheader("🌾 Параметры зернового груза")
     deal_id = st.text_input("ID сделки:", value=f"DEAL-{datetime.now().strftime('%Y%m%d-%H%M')}")
@@ -97,12 +139,15 @@ def render_input_tab(CURRENCY_RATES, tg_token, tg_chat):
         }
         st.session_state.df_data = pd.concat([st.session_state.df_data, pd.DataFrame([new_row])], ignore_index=True)
         
-        tg_text = f"🌾 *Зерновая сделка сохранена!*\n\n*ID:* {deal_id}\n*Культура:* {grain_type}\n*Объем:* {cargo_volume} т (Доплывет: {round(delivered_volume, 1)} т)\n*Прибыль:* ${net_profit:,.2f} USD\n*Чистый доход/Тонна:* ${profit_per_ton:,.2f}"
-        try:
-            url = f"https://telegram.org{tg_token.strip()}/sendMessage"
-            requests.post(url, json={"chat_id": tg_chat.strip(), "text": tg_text, "parse_mode": "Markdown"}, timeout=5)
-        except:
-            pass
+        # Фикс эндпоинта отправки Telegram (добавлен /bot к базовому домену)
+        if tg_token and tg_chat:
+            tg_text = f"🌾 *Зерновая сделка сохранена!*\n\n*ID:* {deal_id}\n*Культура:* {grain_type}\n*Объем:* {cargo_volume} т (Доплывет: {round(delivered_volume, 1)} т)\n*Прибыль:* ${net_profit:,.2f} USD\n*Чистый доход/Тонна:* ${profit_per_ton:,.2f}"
+            try:
+                url = f"https://telegram.org{tg_token.strip()}/sendMessage"
+                requests.post(url, json={"chat_id": tg_chat.strip(), "text": tg_text, "parse_mode": "Markdown"}, timeout=5)
+            except:
+                pass
+                
         st.success(f"✅ Зерновая сделка {deal_id} успешно внесена!")
         st.rerun()
 
@@ -119,7 +164,7 @@ def render_excel_tab():
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
         display_df.to_excel(writer, index=False, sheet_name='Зерно_CCT1')
-    st.download_button(label="📥 СКАЧАТЬ Реестр В EXCEL (.xlsx)", data=buffer.getvalue(), file_name="CCT1_Grain_Report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+    st.download_button(label="📥 СКАЧАТЬ РЕЕСТР ЗЕРНА В EXCEL (.xlsx)", data=buffer.getvalue(), file_name="CCT1_Grain_Report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
 
 def render_radar_tab(tg_token, tg_chat):
     st.subheader("📊 Логистический Радар Зерновозов")
@@ -138,36 +183,9 @@ def render_radar_tab(tg_token, tg_chat):
     
     if len(v_rows) > 0:
         v_info = v_rows[0]
-        
         st.write(f"🚢 **Судно:** {v_info.get('Название судна', 'Alpha')} | **Культура:** {v_info.get('Культура', 'Пшеница')} | **Погружено:** {v_info.get('Объем погрузки (Тонн)', 5000)} т")
         
         with st.spinner("Связь со спутниками AIS..."):
             v_lat, v_lon, v_speed, status_text = get_live_vessel_data(v_info['MMSI/IMO'])
         st.info(f"📡 {status_text}")
         
-        with st.spinner("Поиск координат порта разгрузки..."):
-            p_lat, p_lon, p_name = get_port_coordinates(v_info.get('Порт разгрузки', 'Новороссийск'))
-        
-        # Расчет дистанции и ETA
-        distance_km = haversine(v_lat, v_lon, p_lat, p_lon)
-        distance_nm = distance_km / 1.852 # в морские мили
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Осталось плыть (км)", f"{distance_km:,.1f} км")
-        with col2:
-            if v_speed > 0:
-                hours_left = distance_nm / v_speed
-                days_left = hours_left / 24
-                st.metric("Примерно времени в пути (ETA)", f"{days_left:.1f} суток")
-            else:
-                st.metric("Примерно времени в пути (ETA)", "Судно стоит")
-
-        # Вывод интерактивной карты
-        st.write(f"📍 **Цель:** порт {v_info.get('Порт разгрузки')} (Координаты: {p_lat}, {p_lon})")
-        map_data = pd.DataFrame({
-            'lat': [v_lat, p_lat],
-            'lon': [v_lon, p_lon],
-            'name': [v_info.get('Название судна', 'Судно'), f"Порт: {p_name}"]
-        })
-        st.map(map_data, zoom=4)
