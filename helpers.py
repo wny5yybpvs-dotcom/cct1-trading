@@ -5,11 +5,6 @@ import math
 import io
 from datetime import datetime, date, timedelta
 
-PORTS = {
-    "Новороссийск (Россия)": {"lat": 44.72, "lon": 37.78},
-    "Стамбул (Турция)": {"lat": 41.01, "lon": 28.97}
-}
-
 def get_port_coordinates(port_name):
     if not port_name or port_name.strip() == "":
         return 44.72, 37.78, "Новороссийск"
@@ -32,7 +27,8 @@ def haversine(lat1, lon1, lat2, lon2):
 
 def get_live_vessel_data(mmsi):
     if str(mmsi) == "211281610":
-        return 44.721, 37.781, 0.0, "⚠️ Зафиксировано в акватории порта разгрузки | Скорость: 0.0 узлов"
+        # Демо-судно идет в Новороссийск со скоростью 10 узлов, но находится еще далеко в море
+        return 39.55, 29.30, 10.0, "🚢 В пути (Эгейское море) | Скорость: 10.0 узлов"
     return 29.93, 32.55, 12.0, "В пути (демо-координаты)"
 
 def render_input_tab(CURRENCY_RATES, tg_token, tg_chat):
@@ -58,8 +54,8 @@ def render_input_tab(CURRENCY_RATES, tg_token, tg_chat):
     vessel_mmsi = st.text_input("MMSI или IMO судна:", value="211281610")
     allowed_days = st.number_input("Нормативное время в порту (дней):", min_value=1, value=3)
     demurrage_rate = st.number_input("Ставка демереджа ($ / сутки):", min_value=0.0, value=5000.0)
-    deadline_date = st.date_input("Крайний срок прибытия (Laycan):", value=datetime.now().date() + timedelta(days=5))
-    arrival_date = st.date_input("Дата фактического захода в порт:", value=datetime.now().date())
+    deadline_date = st.date_input("Крайний срок прибытия по контракту (Laycan):", value=datetime.now().date() + timedelta(days=2))
+    arrival_date = st.date_input("Дата фактического захода в порт (если зашло):", value=datetime.now().date())
 
     if st.button("💾 СОХРАНИТЬ СДЕЛКУ В БАЗУ", type="primary", use_container_width=True):
         actual_freight = 0.0 if incoterms == "FOB" else float(freight)
@@ -103,27 +99,60 @@ def render_radar_tab(tg_token, tg_chat):
     if len(v_rows) > 0:
         v_info = v_rows[0]
         st.write(f"🚢 **Судно:** {v_info.get('Название судна', 'Alpha')} | **Базис:** {v_info.get('Инкотермс', 'CIF')}")
+        
         with st.spinner("Связь со спутниками AIS..."):
             v_lat, v_lon, v_speed, status_text = get_live_vessel_data(v_info['MMSI/IMO'])
         st.info(f"📡 {status_text}")
         
-        with st.spinner("Поиск координат порта в мировой базе OpenStreetMap..."):
+        with st.spinner("Поиск координат порта разгрузки..."):
             p_lat, p_lon, p_name = get_port_coordinates(v_info['Порт разгрузки'])
             
         distance_to_port = haversine(v_lat, v_lon, p_lat, p_lon)
-        st.write(f"📍 **Обнаружен порт разгрузки:** {p_name}")
-        st.write(f"📏 **Дистанция до причала:** {round(distance_to_port, 1)} км")
+        st.write(f"📍 **Порт разгрузки:** {p_name}")
+        st.write(f"📏 **Оставшееся расстояние до причала:** {round(distance_to_port, 1)} км")
         
-        if distance_to_port <= 15.0:
+        # --- МОНИТОРИНГ ОПОЗДАНИЯ И РАСЧЕТ РИСКОВ В ПУТИ ---
+        if distance_to_port > 15.0:
+            st.success("🌊 Корабль находится на переходе в море.")
+            if v_speed > 0.5:
+                speed_kmh = v_speed * 1.852
+                hours_left = distance_to_port / speed_kmh
+                days_left = hours_left / 24
+                
+                # Рассчитываем точную дату прибытия по текущему ходу судна
+                eta_datetime = datetime.now() + timedelta(hours=hours_left)
+                st.success(f"⏱ **Прогноз прибытия (ETA):** {eta_datetime.strftime('%d.%m.%Y %H:%M')} (осталось: {round(days_left, 1)} дн.)")
+                
+                # Сравниваем с дедлайном контракта
+                contract_deadline = datetime.strptime(str(v_info['Крайняя дата прибытия']), "%Y-%m-%d")
+                
+                if eta_datetime > contract_deadline:
+                    # Судно опаздывает! Рассчитываем количество дней просрочки и будущий штраф
+                    days_late = (eta_datetime - contract_deadline).days + 1
+                    risk_cost = days_late * float(v_info['Ставка демереджа ($/сут)'])
+                    
+                    st.error(f"🚨 **РАДАР ФИКСИРУЕТ ОПОЗДАНИЕ!** Судно выбилось из графика на **{days_late} дн.**")
+                    st.error(f"📉 **Прогноз транзитного убытка:** -${risk_cost:,} USD демереджа при заходе.")
+                    
+                    if st.button("🚨 ОТПРАВИТЬ СИГНАЛ ОБ ОПОЗДАНИИ В TELEGRAM", use_container_width=True):
+                        alert_text = f"⚠️ *ВНИМАНИЕ! СУДНО ОПАЗДЫВАЕТ!*\n\n*Сделка:* {selected_deal}\n*Судно:* {v_info['Название судна']}\n*ETA:* {eta_datetime.strftime('%d.%m.%Y')}\n*Опоздание:* {days_late} дн.\n*Прогноз потерь:* -${risk_cost:,}"
+                        try:
+                            url = f"https://telegram.org{tg_token.strip()}/sendMessage"
+                            requests.post(url, json={"chat_id": tg_chat.strip(), "text": alert_text, "parse_mode": "Markdown"}, timeout=5)
+                            st.success("🚨 Экстренный сигнал отправлен команде!")
+                        except:
+                            pass
+                else:
+                    st.success("✅ **В графике рейса:** Скорости корабля хватает для прибытия до истечения Laycan.")
+            else:
+                st.warning("⚓️ Судно дрейфует или стоит. Динамический мониторинг ETA приостановлен.")
+        else:
             st.error("🎯 Судно находится внутри акватории порта назначения!")
             entry_date = datetime.strptime(str(v_info.get('Дата захода в порт', datetime.now().date())), "%Y-%m-%d").date()
             days_spent = (datetime.now().date() - entry_date).days
             overdue = max(0, days_spent - int(v_info['Норма простоя (дн)']))
-            st.error(f"🚨 Начислено демереджа: **${overdue * float(v_info['Ставка демереджа ($/сут)']):,}** (Простой: {overdue} дн.)")
-        else:
-            st.success("🌊 Корабль находится на переходе в море.")
-            if v_speed > 0.5:
-                days_left = distance_to_port / (v_speed * 1.852) / 24
-                st.success(f"⏱ **Прогноз прибытия (ETA):** через {round(days_left, 1)} дней ({ (datetime.now() + timedelta(days=days_left)).strftime('%d.%m.%Y') })")
+            st.error(f"🚨 Фактический демередж у причала: **${overdue * float(v_info['Ставка демереджа ($/сут)']):,}** (Простой: {overdue} дн.)")
 
-        st.map(pd.DataFrame([{'latitude': float(v_lat), 'longitude': float(v_lon)}, {'latitude': float(p_lat), 'longitude': float(p_lon)}]))
+        # Карта (рисует точки корабля и причала)
+        map_df = pd.DataFrame([{'latitude': float(v_lat), 'longitude': float(v_lon)}, {'latitude': float(p_lat), 'longitude': float(p_lon)}])
+        st.map(map_df, zoom=3)
