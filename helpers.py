@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 # 1. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 # ==========================================
 def get_live_vessel_data(mmsi):
-    """ Возвращает строго 4 параметра для распаковки """
     return 39.55, 29.30, 10.0, "🛰️ Спутниковый статус AIS: Активен | Судно находится на подходе к терминалу"
 
 # ==========================================
@@ -61,18 +60,18 @@ def render_excel_tab():
     current_today = datetime.now().date()
     updated_rows = []
     for row in st.session_state.df_data.to_dict('records'):
-        arr_dt = datetime.strptime(str(row['Дата захода в порт']), "%Y-%m-%d").date()
+        arr_dt = datetime.strptime(str(row.get('Дата захода в порт', current_today)), "%Y-%m-%d").date()
         days_in_port = (current_today - arr_dt).days
-        overdue = max(0, days_in_port - int(row['Норма простоя (дн)']))
-        row['Демередж (\$)'] = overdue * float(row['Ставка демереджа (\$/сут)'])
+        overdue = max(0, days_in_port - int(row.get('Норма простоя (дн)', 3)))
+        row['Демередж (\$)'] = overdue * float(row.get('Ставка демереджа (\$/сут)', 0.0))
         
-        buy_curr = row['Валюта закупки']
+        buy_curr = row.get('Валюта закупки', 'CNY')
         rate = 7.3 if buy_curr == 'CNY' else (95.0 if buy_curr == 'RUB' else 1.0)
-        buy_usd = float(row['Цена закупки (вход)']) / rate
-        fr = 0.0 if row['Инкотермс'] == "FOB" else float(row['Фрахт (\$)'])
+        buy_usd = float(row.get('Цена закупки (вход)', 0.0)) / rate
+        fr = 0.0 if row.get('Инкотермс') == "FOB" else float(row.get('Фрахт (\$)', 0.0))
         
-        row['Чистая прибыль (\$)'] = float(row['Цена продажи (USD)']) - buy_usd - fr - float(row['Пошлины и Страховка (\$)']) - float(row['Прочие расходы (\$)']) - row['Демередж (\$)']
-        row['Прибыль/Тонна (\$)'] = row['Чистая прибыль (\$)'] / float(row['Объем (Тонн)'])
+        row['Чистая прибыль (\$)'] = float(row.get('Цена продажи (USD)', 0.0)) - buy_usd - fr - float(row.get('Пошлины и Страховка (\$)', 0.0)) - float(row.get('Прочие расходы (\$)', 0.0)) - row['Демередж (\$)']
+        row['Прибыль/Тонна (\$)'] = row['Чистая прибыль (\$)'] / max(1.0, float(row.get('Объем (Тонн)', 1.0)))
         updated_rows.append(row)
         
     st.session_state.df_data = pd.DataFrame(updated_rows)
@@ -89,18 +88,18 @@ def render_radar_tab(tg_token, tg_chat):
     current_today = datetime.now().date()
     updated_rows = []
     for row in st.session_state.df_data.to_dict('records'):
-        arr_dt = datetime.strptime(str(row['Дата захода в порт']), "%Y-%m-%d").date()
+        arr_dt = datetime.strptime(str(row.get('Дата захода в порт', current_today)), "%Y-%m-%d").date()
         days_in_port = (current_today - arr_dt).days
-        overdue = max(0, days_in_port - int(row['Норма простоя (дн)']))
-        row['Демередж (\$)'] = overdue * float(row['Ставка демереджа (\$/сут)'])
+        overdue = max(0, days_in_port - int(row.get('Норма простоя (дн)', 3)))
+        row['Демередж (\$)'] = overdue * float(row.get('Ставка демереджа (\$/сут)', 0.0))
         
-        buy_curr = row['Валюта закупки']
+        buy_curr = row.get('Валюта закупки', 'CNY')
         rate = 7.3 if buy_curr == 'CNY' else (95.0 if buy_curr == 'RUB' else 1.0)
-        buy_usd = float(row['Цена закупки (вход)']) / rate
-        fr = 0.0 if row['Инкотермс'] == "FOB" else float(row['Фрахт (\$)'])
+        buy_usd = float(row.get('Цена закупки (вход)', 0.0)) / rate
+        fr = 0.0 if row.get('Инкотермс') == "FOB" else float(row.get('Фрахт (\$)', 0.0))
         
-        row['Чистая прибыль (\$)'] = float(row['Цена продажи (USD)']) - buy_usd - fr - float(row['Пошлины и Страховка (\$)']) - float(row['Прочие расходы (\$)']) - row['Демередж (\$)']
-        row['Прибыль/Тонна (\$)'] = row['Чистая прибыль (\$)'] / float(row['Объем (Тонн)'])
+        row['Чистая прибыль (\$)'] = float(row.get('Цена продажи (USD)', 0.0)) - buy_usd - fr - float(row.get('Пошлины и Страховка (\$)', 0.0)) - float(row.get('Прочие расходы (\$)', 0.0)) - row['Демередж (\$)']
+        row['Прибыль/Тонна (\$)'] = row['Чистая прибыль (\$)'] / max(1.0, float(row.get('Объем (Тонн)', 1.0)))
         updated_rows.append(row)
     st.session_state.df_data = pd.DataFrame(updated_rows)
 
@@ -108,28 +107,22 @@ def render_radar_tab(tg_token, tg_chat):
     v_rows = st.session_state.df_data[st.session_state.df_data['ID Сделки'] == selected_deal].to_dict('records')
     
     if len(v_rows) > 0:
-        v_info = v_rows[0]  # Исправлено: берем первый словарь из списка записей
+        v_info = v_rows[0] # Исправлено: берём первый элемент списка
         st.markdown(f"### 🚢 Мониторинг рейса: `{v_info.get('Название судна')}`")
         
         lat, lon, speed, status_text = get_live_vessel_data(v_info.get('MMSI/IMO'))
         st.success(status_text)
         
-        arr_dt = datetime.strptime(str(v_info['Дата захода в порт']), "%Y-%m-%d").date()
+        arr_dt = datetime.strptime(str(v_info.get('Дата захода в порт', current_today)), "%Y-%m-%d").date()
         total_days_spent = (current_today - arr_dt).days
         
-        # ВЫВОД МЕТРИК ДЕМЕРЕДЖА И ПРИБЫЛИ
         st.markdown("#### ⚙️ Экономические показатели простоя:")
-        st.metric(label="🚨 ТЕКУЩИЙ НАБЕЖАВШИЙ ДЕМЕРЕДЖ", value=f"\${v_info.get('Демередж (\$)'):,.2f}")
-        st.metric(label="💵 ЧИСТАЯ ПРИБЫЛЬ С УЧЕТОМ ШТРАФОВ", value=f"\${v_info.get('Чистая прибыль (\$)'):,.2f}")
+        st.metric(label="🚨 ТЕКУЩИЙ НАБЕЖАВШИЙ ДЕМЕРЕДЖ", value=f"\${v_info.get('Демередж (\$)', 0.0):,.2f}")
+        st.metric(label="💵 ЧИСТАЯ ПРИБЫЛЬ С УЧЕТОМ ШТРАФОВ", value=f"\${v_info.get('Чистая прибыль (\$)', 0.0):,.2f}")
         
-        st.info(f"📅 Судно находится в порту назначения уже **{total_days_spent} дней** (Разрешенная норма простоя: {v_info.get('Норма простоя (дн)')} дн.)")
+        st.info(f"📅 Судно находится в порту назначения уже **{total_days_spent} дней** (Разрешенная norma простоя: {v_info.get('Норма простоя (дн)')} дн.)")
         
-        # ==========================================
-        # СТАНДАРТНАЯ КАРТА STREAMLIT ДЛЯ МОБИЛЬНЫХ
-        # ==========================================
         st.markdown("#### 📍 Положение судна на карте:")
-        
-        # Хардкод-координаты для стабильности
         p_start_lat, p_start_lon = 41.0151, 28.9795   # Стамбул
         p_end_lat, p_end_lon = 44.7239, 37.7686       # Новороссийск
         
@@ -141,9 +134,7 @@ def render_radar_tab(tg_token, tg_chat):
         df_map = pd.DataFrame(map_points)
         st.map(df_map, zoom=4, use_container_width=True)
         
-        # Текстовый дубляж схемы для 100% контроля
         st.markdown("#### 📋 Статус логистической цепочки:")
         p_start = v_info.get('Порт загрузки', 'Старт')
         p_end = v_info.get('Порт разгрузки', 'Финиш')
-        
         st.warning(f"🏁 **[ТЕКУЩИЙ ЭТАП]** Судно прошло маршрут **{p_start} -> {p_end}** и сейчас оштрафовано за простой в порту разгрузки.")
