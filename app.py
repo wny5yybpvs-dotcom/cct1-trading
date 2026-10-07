@@ -205,8 +205,9 @@ with tab2:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True
     )
 
-# --- ВКЛАДКА 3 (ПЛОСКАЯ ЛИНЕЙНАЯ СТРУКТУРА БЕЗ ВЛОЖЕННЫХ IF/ELSE) ---
+# --- ВКЛАДКА 3 (ПОЛНОСТЬЮ БЕЗОПАСНАЯ ВЕРСИЯ БЕЗ ILOC) ---
 with tab3:
     st.header("📊 Умный Мониторинг & Логистический Радар")
     df = st.session_state.df_data
     
+    if df.empty:
