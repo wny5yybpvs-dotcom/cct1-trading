@@ -48,18 +48,14 @@ def convert_to_usd(amount, from_currency):
 # --- ФУНКЦИЯ ОТПРАВКИ В TELEGRAM ---
 def send_telegram_message(token, chat_id, text):
     if not token or not chat_id or token == "ВАШ_ТОКЕН" or chat_id == "ВАШ_ID" or token.strip() == "" or chat_id.strip() == "":
-        return False, "⚠️ Ключи Telegram не заполнены в боковом меню."
+        return False
     try:
         url = f"https://telegram.org{token.strip()}/sendMessage"
         payload = {"chat_id": chat_id.strip(), "text": text, "parse_mode": "Markdown"}
         response = requests.post(url, json=payload, timeout=5)
-        if response.status_code == 200:
-            return True, "Успешно!"
-        else:
-            error_desc = response.json().get("description", "Неизвестная ошибка")
-            return False, f"Ошибка Telegram: {error_desc}"
-    except Exception as e:
-        return False, f"Ошибка сети: {str(e)}"
+        return response.status_code == 200
+    except:
+        return False
 
 # --- БАЗА МИРОВЫХ ПОРТОВ ---
 PORTS = {
@@ -94,7 +90,6 @@ def get_live_vessel_data(mmsi_or_imo):
             return float(data.get('latitude', 29.93)), float(data.get('longitude', 32.55)), float(data.get('speed', 12.0)), f"Статус: {data.get('navigational_status', 'В пути')} | Скорость: {data.get('speed', 'Н/Д')} узлов"
     except:
         pass
-    # Демо-судно (Имитируем, что оно подошло вплотную к Новороссийску, чтобы показать функции автодемереджа)
     if mmsi_or_imo == "211281610":
         return 44.721, 37.781, 0.0, "⚠️ Зафиксировано в порту назначения (Новороссийск) | Скорость: 0.0 узлов"
     return 29.93, 32.55, 12.0, "Режим ожидания. Показываем плановые данные."
@@ -110,7 +105,7 @@ if "df_data" not in st.session_state or not isinstance(st.session_state.df_data,
         'Пошлины и Страховка ($)': 5000.0, 'Прочие расходы ($)': 2000.0, 
         'Норма простоя (дн)': 3, 'Ставка демереджа ($/сут)': 5000.0,
         'Крайняя дата прибытия': str(datetime.now().date() + timedelta(days=2)),
-        'Дата захода в порт': str(datetime.now().date() - timedelta(days=6)), # Стоит уже 6 дней (3 дня норма + 3 дня демередж)
+        'Дата захода в порт': str(datetime.now().date() - timedelta(days=6)),
         'Демередж ($)': 15000.0, 'Чистая прибыль ($)': 38000.0
     }])
 
@@ -173,7 +168,6 @@ with tab1:
     if st.button("💾 СОХРАНИТЬ СДЕЛКУ И ОТПРАВИТЬ ОТЧЕТ", type="primary", use_container_width=True):
         actual_freight = 0.0 if incoterms == "FOB" else float(freight)
         
-        # Расчет первичного демереджа по датам при вводе
         days_in_port = (datetime.now().date() - arrival_date).days
         days_overdue = max(0, days_in_port - allowed_days)
         demurrage_total = days_overdue * demurrage_rate
@@ -205,3 +199,14 @@ with tab2:
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
         st.session_state.df_data.to_excel(writer, index=False, sheet_name='Сделки CCT1')
+    st.download_button(
+        label="📥 СКАЧАТЬ БАЗУ В EXCEL (.xlsx)", data=buffer.getvalue(),
+        file_name=f"CCT1_Report_{datetime.now().strftime('%Y%m%d')}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True
+    )
+
+# --- ВКЛАДКА 3 ---
+with tab3:
+    st.header("📊 Умный Мониторинг & Логистический Радар")
+    df = st.session_state.df_data
+    
