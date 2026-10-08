@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit st
 import pandas as pd
 import requests
 from datetime import datetime, timedelta
@@ -33,23 +33,23 @@ def get_exchange_rates():
 
 CURRENCY_RATES = get_exchange_rates()
 
-if "df_data" not in st.session_state or "Влажность (%)" not in st.session_state.df_data.columns:
+if "df_data" not in st.session_state or "Условия сталии (SHEX/SHINC)" not in st.session_state.df_data.columns:
     st.session_state.df_data = pd.DataFrame([{
-        'ID Сделки': 'DEAL-TEST-GRAIN', 'Дата': str(datetime.now().date()), 'Статус рейса': 'В порту', 'Инкотермс': 'CIF',
-        'Объем (Тонн)': 5000.0, 'Название судна': 'Vessel Alpha', 'MMSI/IMO': '211281610',
+        'ID Сделки': 'DEAL-TEST-PRO-GRAIN', 'Дата': str(datetime.now().date()), 'Статус рейса': 'В порту', 'Инкотермс': 'CIF',
+        'Объем погрузки (Тонн)': 5000.0, 'Название судна': 'Vessel Alpha', 'MMSI/IMO': '211281610',
         'Порт загрузки': 'Стамбул', 'Порт разгрузки': 'Новороссийск', 
         'Цена закупки (вход)': 700000.0, 'Валюта закупки': 'CNY', 'Цена продажи (USD)': 180000.0, 
-        'Фрахт ($)': 15000.0, 'Экспортная пошлина ($)': 0.0, 'Прочие расходы ($)': 2000.0, 
-        'Норма выгрузки (т/сут)': 1500.0, 'Ставка демереджа ($/сут)': 5000.0,
-        'Крайняя дата прибытия': str(datetime.now().date() + timedelta(days=2)), 
-        'Дата захода в порт': str(datetime.now().date() - timedelta(days=6)),
-        'Влажность (%)': 14.5, 'Сорная примесь (%)': 2.5,
-        'Рефакция веса (Тонн)': 50.0, 'Объем выгрузки (Тонн)': 4950.0,
-        'Паритет закупки CPT ($/т)': 110.5, 'Демередж ($)': 13333.33, 'Чистая прибыль ($)': 45000.0, 'Прибыль/Тонна ($)': 9.0
+        'Фрахт ($)': 15000.0, 'Экспортная пошлина ($)': 0.0, 'Прочие расходы ($)': 2000.0,
+        'Сюрвей и анализы ($)': 500.0, 'Банковская комиссия L/C ($)': 1200.0,
+        'Тип операции сталии': 'Выгрузка', 'Норма обработки (т/сут)': 1500.0, 'Условия сталии (SHEX/SHINC)': 'SHEX (Вых. исключены)',
+        'Ставка демереджа ($/сут)': 5000.0, 'Дата захода в порт': str(datetime.now().date() - timedelta(days=8)),
+        'Влажность (%)': 14.5, 'Сорная примесь (%)': 2.5, 'Рефакция веса (Тонн)': 50.0, 'Объем выгрузки (Тонн)': 4950.0,
+        'Разрешенное сталийное время (дн)': 3.33, 'Фактически в порту (календарных дн)': 8, 'Рабочих дней простоя': 6.0,
+        'Демередж ($)': 13333.33, 'Диспач ($)': 0.0, 'Паритет закупки CPT ($/т)': 110.5, 'Чистая прибыль ($)': 45000.0, 'Прибыль/Тонна ($)': 9.0
     }])
 
-st.set_page_config(layout="wide", page_title="CCT1 Enterprise")
-st.title("🚢 Платформа CCT1 Global Tracker")
+st.set_page_config(layout="wide", page_title="CCT1 Enterprise Pro")
+st.title("🌾 Аналитический терминал зернотрейдера «CCT1»")
 
 st.sidebar.header("💱 Живой курс валют")
 st.sidebar.write(f"💵 1 USD = **{round(CURRENCY_RATES['RUB'], 2)}** RUB")
