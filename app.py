@@ -1,4 +1,4 @@
-import streamlit st
+import streamlit as st
 import pandas as pd
 import requests
 from datetime import datetime, timedelta
@@ -36,7 +36,7 @@ CURRENCY_RATES = get_exchange_rates()
 if "df_data" not in st.session_state or "Условия сталии (SHEX/SHINC)" not in st.session_state.df_data.columns:
     st.session_state.df_data = pd.DataFrame([{
         'ID Сделки': 'DEAL-TEST-PRO-GRAIN', 'Дата': str(datetime.now().date()), 'Статус рейса': 'В порту', 'Инкотермс': 'CIF',
-        'Объем погрузки (Тонн)': 5000.0, 'Название судна': 'Vessel Alpha', 'MMSI/IMO': '211281610',
+        'Объем (Тонн)': 5000.0, 'Название судна': 'Vessel Alpha', 'MMSI/IMO': '211281610',
         'Порт загрузки': 'Стамбул', 'Порт разгрузки': 'Новороссийск', 
         'Цена закупки (вход)': 700000.0, 'Валюта закупки': 'CNY', 'Цена продажи (USD)': 180000.0, 
         'Фрахт ($)': 15000.0, 'Экспортная пошлина ($)': 0.0, 'Прочие расходы ($)': 2000.0,
