@@ -90,17 +90,21 @@ def render_excel_tab():
     for row in st.session_state.df_data.to_dict('records'):
         cargo = float(row.get('Объем (Тонн)', 5000.0))
         rate_per_day = float(row.get('Норма выгрузки (т/сут)', 1500.0))
-        allowed_laydays = cargo / max(1.0, rate_per_day)
         
+        # Динамический учет Laytime (демередж начисляется только если судно не в пути)
         try:
             arr_dt = datetime.datetime.strptime(str(row.get('Дата захода в порт', current_today)), "%Y-%m-%d").date()
         except:
             arr_dt = current_today
             
-        days_in_port = (current_today - arr_dt).days
-        overdue = max(0.0, float(days_in_port) - allowed_laydays)
-        row['Демередж ($)'] = overdue * float(row.get('Ставка демереджа ($/сут)', 0.0))
-        
+        if row.get('Статус рейса') in ["В порту", "Завершена (Архив)"]:
+            allowed_laydays = cargo / max(1.0, rate_per_day)
+            days_in_port = (current_today - arr_dt).days
+            overdue = max(0.0, float(days_in_port) - allowed_laydays)
+            row['Демередж ($)'] = overdue * float(row.get('Ставка демереджа ($/сут)', 0.0))
+        else:
+            row['Демередж ($)'] = 0.0
+            
         buy_curr = row.get('Валюта закупки', 'CNY')
         curr_rate = 7.3 if buy_curr == 'CNY' else (95.0 if buy_curr == 'RUB' else 1.0)
         buy_usd = float(row.get('Цена закупки (вход)', 0.0)) / curr_rate
@@ -131,21 +135,25 @@ def render_radar_tab(tg_token, tg_chat):
     if 'Объем погрузки (Тонн)' in st.session_state.df_data.columns:
         st.session_state.df_data = st.session_state.df_data.rename(columns={'Объем погрузки (Тонн)': 'Объем (Тонн)'})
 
+    # Глобальное обновление показателей перед выводом
     updated_rows = []
     for row in st.session_state.df_data.to_dict('records'):
         cargo = float(row.get('Объем (Тонн)', 5000.0))
         rate_per_day = float(row.get('Норма выгрузки (т/сут)', 1500.0))
-        allowed_laydays = cargo / max(1.0, rate_per_day)
         
         try:
-            arr_dt = datetime.datetime.strptime(str(row.get('Дата захода в порт', current_today)), "%Y-%m-%d").date()
+            arr_dt = datetime.datetime.strptime(str(row.get('Дата захода в港', current_today)), "%Y-%m-%d").date()
         except:
             arr_dt = current_today
             
-        days_in_port = (current_today - arr_dt).days
-        overdue = max(0.0, float(days_in_port) - allowed_laydays)
-        row['Демередж ($)'] = overdue * float(row.get('Ставка демереджа ($/сут)', 0.0))
-        
+        if row.get('Статус рейса') in ["В порту", "Завершена (Архив)"]:
+            allowed_laydays = cargo / max(1.0, rate_per_day)
+            days_in_port = (current_today - arr_dt).days
+            overdue = max(0.0, float(days_in_port) - allowed_laydays)
+            row['Демередж ($)'] = overdue * float(row.get('Ставка демереджа ($/сут)', 0.0))
+        else:
+            row['Демередж ($)'] = 0.0
+            
         buy_curr = row.get('Валюта закупки', 'CNY')
         curr_rate = 7.3 if buy_curr == 'CNY' else (95.0 if buy_curr == 'RUB' else 1.0)
         buy_usd = float(row.get('Цена закупки (вход)', 0.0)) / curr_rate
@@ -161,16 +169,5 @@ def render_radar_tab(tg_token, tg_chat):
         return
 
     selected_deal = st.selectbox("Выберите судно для трекинга:", list(st.session_state.df_data['ID Сделки'].unique()))
-    v_rows = st.session_state.df_data[st.session_state.df_data['ID Сделки'] == selected_deal].to_dict('records')
     
-    if len(v_rows) > 0:
-        v_info = v_rows[0]
-        st.markdown(f"### 🚢 Оперативный трекинг: `{v_info.get('Название судна', 'Alpha')}`")
-        
-        lat, lon, speed, status_text = get_live_vessel_data(v_info.get('MMSI/IMO'))
-        st.success(status_text)
-        
-        cargo = float(v_info.get('Объем (Тонн)', 5000.0))
-        rate_per_day = float(v_info.get('Норма выгрузки (т/сут)', 1500.0))
-        allowed_days = round(cargo / max(1.0, rate_per_day), 1)
-        
+    # Ищем индекс выбранной строки в сессии для последующего редактирования
