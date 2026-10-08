@@ -42,7 +42,7 @@ def render_input_tab(CURRENCY_RATES, tg_token, tg_chat):
     target_margin_per_ton = st.number_input("Желаемая чистая маржа трейдера ($ / тонну):", min_value=0.0, value=10.0)
 
     st.subheader("🚢 Сталийное время, Фрахт & Пошлины")
-    freight = st.number_input("Стоимость фрахта судна ($):", min_value=0.0, value=15000.0)
+    freight = st.number_input("Стоимость фрахта сусна ($):", min_value=0.0, value=15000.0)
     duties = st.number_input("Экспортная пошлина ($):", min_value=0.0, value=0.0)
     extra_costs = st.number_input("Прочие расходы, анализы ГХС ($):", min_value=0.0, value=2000.0)
     discharge_rate = st.number_input("Контрактная норма выгрузки (Тонн / сутки):", min_value=1.0, value=1500.0)
@@ -165,14 +165,12 @@ def render_radar_tab(tg_token, tg_chat):
     
     if len(v_rows) > 0:
         v_info = v_rows[0]
+        st.markdown(f"### 🚢 Оперативный трекинг: `{v_info.get('Название судна', 'Alpha')}`")
         
-        try:
-            st.markdown(f"### 🚢 Оперативный трекикинг: `{v_info.get('Название судна', 'Alpha')}`")
-            
-            lat, lon, speed, status_text = get_live_vessel_data(v_info.get('MMSI/IMO'))
-            st.success(status_text)
-            
-            cargo = float(v_info.get('Объем (Тонн)', 5000.0))
-            rate_per_day = float(v_info.get('Норма выгрузки (т/сут)', 1500.0))
-            allowed_days = round(cargo / max(1.0, rate_per_day), 1)
-            
+        lat, lon, speed, status_text = get_live_vessel_data(v_info.get('MMSI/IMO'))
+        st.success(status_text)
+        
+        cargo = float(v_info.get('Объем (Тонн)', 5000.0))
+        rate_per_day = float(v_info.get('Норма выгрузки (т/сут)', 1500.0))
+        allowed_days = round(cargo / max(1.0, rate_per_day), 1)
+        
