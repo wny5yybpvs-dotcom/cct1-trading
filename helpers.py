@@ -67,8 +67,7 @@ def render_input_tab(CURRENCY_RATES, tg_token, tg_chat):
             'Цена закупки (вход)': price_buy_total, 'Валюта закупки': buy_curr, 'Цена продажи (USD)': price_sell_total, 
             'Фрахт ($)': actual_freight, 'Экспортная пошлина ($)': float(duties), 'Прочие расходы ($)': float(extra_costs), 
             'Норма выгрузки (т/сут)': discharge_rate, 'Ставка демереджа ($/сут)': float(demurrage_rate),
-            'Крайняя дата прибытия': str(default_laycan), 
-            'Дата захода в порт': str(arrival_date),
+            'Крайняя дата прибытия': str(default_laycan), 'Дата захода в порт': str(arrival_date),
             'Влажность (%)': moisture, 'Сорная примесь (%)': admixture,
             'Рефакция веса (Тонн)': round(total_refaction, 1), 'Объем выгрузки (Тонн)': round(delivered_volume, 1),
             'Паритет закупки CPT ($/т)': round(netback_cpt_usd_per_ton, 2),
@@ -91,7 +90,6 @@ def render_excel_tab():
         cargo = float(row.get('Объем (Тонн)', 5000.0))
         rate_per_day = float(row.get('Норма выгрузки (т/сут)', 1500.0))
         
-        # Динамический учет Laytime (демередж начисляется только если судно не в пути)
         try:
             arr_dt = datetime.datetime.strptime(str(row.get('Дата захода в порт', current_today)), "%Y-%m-%d").date()
         except:
@@ -135,14 +133,13 @@ def render_radar_tab(tg_token, tg_chat):
     if 'Объем погрузки (Тонн)' in st.session_state.df_data.columns:
         st.session_state.df_data = st.session_state.df_data.rename(columns={'Объем погрузки (Тонн)': 'Объем (Тонн)'})
 
-    # Глобальное обновление показателей перед выводом
     updated_rows = []
     for row in st.session_state.df_data.to_dict('records'):
         cargo = float(row.get('Объем (Тонн)', 5000.0))
         rate_per_day = float(row.get('Норма выгрузки (т/сут)', 1500.0))
         
         try:
-            arr_dt = datetime.datetime.strptime(str(row.get('Дата захода в港', current_today)), "%Y-%m-%d").date()
+            arr_dt = datetime.datetime.strptime(str(row.get('Дата захода в порт', current_today)), "%Y-%m-%d").date()
         except:
             arr_dt = current_today
             
@@ -169,5 +166,11 @@ def render_radar_tab(tg_token, tg_chat):
         return
 
     selected_deal = st.selectbox("Выберите судно для трекинга:", list(st.session_state.df_data['ID Сделки'].unique()))
+    v_rows = st.session_state.df_data[st.session_state.df_data['ID Сделки'] == selected_deal].to_dict('records')
     
-    # Ищем индекс выбранной строки в сессии для последующего редактирования
+    if len(v_rows) > 0:
+        # ИСПРАВЛЕНО: Явно берем первую строку из списка v_rows[0]
+        v_info = v_rows[0]
+        
+        st.markdown(f"### 🚢 Оперативный трекинг: `{v_info.get('Название судна', 'Alpha')}`")
+        
